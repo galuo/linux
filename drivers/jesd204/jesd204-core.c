@@ -232,6 +232,11 @@ int __jesd204_dev_register(struct jesd204_dev *jdev, struct module *this_mod)
 	if (!jdev->dev.of_node && jdev->dev.parent)
 		jdev->dev.of_node = jdev->dev.parent->of_node;
 
+	/* parse common device DT props */
+	ret = of_jesd204_parse_dt(jdev);
+	if (ret < 0)
+		return ret;
+
 	/* configure elements for the chrdev */
 	jdev->dev.devt = MKDEV(MAJOR(jesd204_devt), pdev->id);
 

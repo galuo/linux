@@ -13,15 +13,28 @@
 #define _JESD204_H_
 
 #include <linux/device.h>
+#include <dt-bindings/jesd204/jesd204.h>
 
 #define JESD204_ALIGN	L1_CACHE_BYTES
 
 /**
+ * struct jesd204_dev_caps - JESD204 device capabilities
+ * @jesd204_revision:		JESD204 revision supported by device (A,B,C)
+ * @subclass_version:		JESD204 subclass supported by device (0,1,2)
+ */
+struct jesd204_dev_caps {
+	uint8_t				jesd204_revision;
+	uint8_t				jesd204_subclass;
+};
+
+/**
  * struct jesd204_dev - JESD204 device
  * @dev:		device structure, should be assigned a parent and owner
+ * @caps:		JESD204 device capabilities
  */
 struct jesd204_dev {
 	struct device			dev;
+	struct jesd204_dev_caps		caps;
 };
 
 struct jesd204_dev *jesd204_dev_alloc(int sizeof_priv);

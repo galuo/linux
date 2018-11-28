@@ -45,4 +45,13 @@ static inline struct jesd204_dev_priv *jesd204_dev_to_priv(
 	return container_of(jdev, struct jesd204_dev_priv, jesd204_dev);
 }
 
+#if IS_ENABLED(CONFIG_OF)
+int of_jesd204_parse_dt(struct jesd204_dev *jdev);
+#else
+static inline int of_jesd204_parse_dt(struct jesd204_dev *jdev)
+{
+	return -ENOSYS;
+}
+#endif /* IS_ENABLED(CONFIG_OF) */
+
 #endif /* _JESD204_PRIV_H_ */
