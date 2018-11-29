@@ -72,4 +72,25 @@ static inline struct jesd204_dev *dev_to_jesd204_dev(struct device *dev)
 	return container_of(dev, struct jesd204_dev, dev);
 }
 
+/**
+ * jesd204_dev_get() - increment reference count for the device
+ * @jdev:		JESD204 device structure
+ *
+ * Returns: The passed JESD204 device
+ **/
+static inline struct jesd204_dev *jesd204_dev_get(struct jesd204_dev *jdev)
+{
+        return jdev ? dev_to_jesd204_dev(get_device(&jdev->dev)) : NULL;
+}
+
+/**
+ * jesd204_dev_put() - reference counted deallocation of struct device
+ * @jdev:		JESD204 device structure containing the device
+ **/
+static inline void jesd204_dev_put(struct jesd204_dev *jdev)
+{
+	if (jdev)
+		put_device(&jdev->dev);
+}
+
 #endif

@@ -12,12 +12,18 @@
 #define _JESD204_PRIV_H_
 
 #include <linux/module.h>
+#include <linux/cdev.h>
 #include <linux/jesd204/jesd204.h>
+
+/* Event interface flags */
+#define JESD204_BUSY_BIT_POS	BIT(0)
 
 /**
  * struct jesd204_dev_priv - JESD204 device private framework data
  * @id:			used to identify device internally
  * @driver_module:		used to make it harder to undercut users
+ * @chrdev:			associated character device
+ * @flags:			file ops related flags including busy flag
  */
 struct jesd204_dev_priv {
 	struct jesd204_dev		jesd204_dev;
@@ -29,6 +35,8 @@ struct jesd204_dev_priv {
 
 	int				id;
 	struct module			*driver_module;
+	struct cdev			chrdev;
+	unsigned long			flags;
 };
 
 static inline struct jesd204_dev_priv *jesd204_dev_to_priv(

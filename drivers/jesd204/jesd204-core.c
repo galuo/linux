@@ -174,16 +174,77 @@ void devm_jesd204_dev_free(struct device *dev, struct jesd204_dev *jdev)
 }
 EXPORT_SYMBOL_GPL(devm_jesd204_dev_free);
 
+/**
+ * jesd204_chrdev_open() - chrdev file open for buffer access and ioctls
+ * @inode:	Inode structure for identifying the device in the file system
+ * @filp:	File structure for JESD204 device used to keep and later access
+ *		private data
+ *
+ * Return: 0 on success or -EBUSY if the device is already opened
+ **/
+static int jesd204_chrdev_open(struct inode *inode, struct file *filp)
+{
+	struct jesd204_dev_priv *pdev =
+		container_of(inode->i_cdev, struct jesd204_dev_priv, chrdev);
+
+	if (test_and_set_bit(JESD204_BUSY_BIT_POS, &pdev->flags))
+		return -EBUSY;
+
+	jesd204_dev_get(&pdev->jesd204_dev);
+
+	filp->private_data = pdev;
+
+	return 0;
+}
+
+/**
+ * jesd204_chrdev_release() - chrdev file close buffer access and ioctls
+ * @inode:	Inode structure pointer for the char device
+ * @filp:	File structure pointer for the char device
+ *
+ * Return: 0 for successful release
+ */
+static int jesd204_chrdev_release(struct inode *inode, struct file *filp)
+{
+	struct jesd204_dev_priv *pdev =
+		 container_of(inode->i_cdev, struct jesd204_dev_priv, chrdev);
+
+	clear_bit(JESD204_BUSY_BIT_POS, &pdev->flags);
+	jesd204_dev_put(&pdev->jesd204_dev);
+
+	return 0;
+}
+
+static const struct file_operations jesd204_fileops = {
+	.release = jesd204_chrdev_release,
+	.open = jesd204_chrdev_open,
+	.owner = THIS_MODULE,
+	.llseek = noop_llseek,
+};
+
 int __jesd204_dev_register(struct jesd204_dev *jdev, struct module *this_mod)
 {
 	struct jesd204_dev_priv *pdev = jesd204_dev_to_priv(jdev);
+	int ret;
 
 	pdev->driver_module = this_mod;
 	/* If the calling driver did not initialize of_node, do it here */
 	if (!jdev->dev.of_node && jdev->dev.parent)
 		jdev->dev.of_node = jdev->dev.parent->of_node;
 
+	/* configure elements for the chrdev */
+	jdev->dev.devt = MKDEV(MAJOR(jesd204_devt), pdev->id);
+
+	cdev_init(&pdev->chrdev, &jesd204_fileops);
+	pdev->chrdev.owner = this_mod;
+
+	ret = cdev_device_add(&pdev->chrdev, &jdev->dev);
+	if (ret < 0)
+		goto error;
+
 	return 0;
+error:
+	return ret;
 }
 EXPORT_SYMBOL(__jesd204_dev_register);
 
