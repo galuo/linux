@@ -6,6 +6,7 @@
 obj-$(CONFIG_JESD204) += jesd204.o
 jesd204-y := jesd204-core.o
 
+obj-$(CONFIG_JESD204_DEVICE) += jesd204-device.o
 obj-$(CONFIG_OF) += jesd204-of.o
 
 obj-$(CONFIG_AXI_JESD204B) += axi_jesd204b_v51.o axi_jesd204b_gt.o

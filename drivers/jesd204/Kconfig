@@ -23,6 +23,19 @@ config AXI_JESD204B
 	depends on COMMON_CLK
 	select XILINX_TRANSCEIVER
 
+config JESD204_DEVICE
+	tristate "Generic JESD204 configuration driver"
+	depends on COMMON_CLK
+	help
+	  This is a generic driver that uses OF graph to aggregate
+	  multiple other drivers in order to setup & configure JESD204
+	  links. Various elements of a such a link are common to most
+	  devices, and they're complex as they require tight
+	  inter-operation of other elements.
+
+	  This driver handles configuration for both RX & TX links,
+	  as most logic is pushed to the JESD204 subsystem logic.
+
 source "drivers/jesd204/linklayer/Kconfig"
 source "drivers/jesd204/transceiver/Kconfig"
 
