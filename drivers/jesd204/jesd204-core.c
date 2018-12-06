@@ -237,6 +237,10 @@ int __jesd204_dev_register(struct jesd204_dev *jdev, struct module *this_mod)
 	if (ret < 0)
 		return ret;
 
+	ret = of_jesd204_dev_populate_topology(jdev);
+	if (ret < 0)
+		return ret;
+
 	/* configure elements for the chrdev */
 	jdev->dev.devt = MKDEV(MAJOR(jesd204_devt), pdev->id);
 

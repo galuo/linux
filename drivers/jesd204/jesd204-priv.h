@@ -18,6 +18,10 @@
 /* Event interface flags */
 #define JESD204_BUSY_BIT_POS	BIT(0)
 
+struct jesd204_subdev {
+	struct list_head list;
+};
+
 /**
  * struct jesd204_dev_priv - JESD204 device private framework data
  * @id:			used to identify device internally
@@ -47,8 +51,13 @@ static inline struct jesd204_dev_priv *jesd204_dev_to_priv(
 
 #if IS_ENABLED(CONFIG_OF)
 int of_jesd204_parse_dt(struct jesd204_dev *jdev);
+int of_jesd204_dev_populate_topology(struct jesd204_dev *jdev);
 #else
 static inline int of_jesd204_parse_dt(struct jesd204_dev *jdev)
+{
+	return -ENOSYS;
+}
+int of_jesd204_dev_populate_topology(struct jesd204_dev *jdev)
 {
 	return -ENOSYS;
 }
