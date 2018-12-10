@@ -12,6 +12,7 @@
 
 #include <linux/types.h>
 #include <linux/err.h>
+#include <linux/clk.h>
 #include <linux/of.h>
 #include <linux/of_graph.h>
 #include <linux/of_platform.h>
@@ -97,153 +98,202 @@ of_jesd204_get_endpoint_device(struct device_node *endpoint)
 	return NULL;
 }
 
-#if 0
-static void of_coresight_get_ports(const struct device_node *node,
-				   int *nr_inport, int *nr_outport)
+static bool of_jesd204_dev_find_clock(struct jesd204_dev_priv *pdev,
+				      struct clk *clk)
 {
-	struct device_node *ep = NULL;
-	int in = 0, out = 0;
+	struct jesd204_clocks *c;
 
-	do {
-		ep = of_graph_get_next_endpoint(node, ep);
-		if (!ep)
-			break;
-
-		if (of_property_read_bool(ep, "slave-mode"))
-			in++;
-		else
-			out++;
-
-	} while (ep);
-
-	*nr_inport = in;
-	*nr_outport = out;
-}
-
-static int of_coresight_alloc_memory(struct device *dev,
-			struct coresight_platform_data *pdata)
-{
-	/* List of output port on this component */
-	pdata->outports = devm_kzalloc(dev, pdata->nr_outport *
-				       sizeof(*pdata->outports),
-				       GFP_KERNEL);
-	if (!pdata->outports)
-		return -ENOMEM;
-
-	/* Children connected to this component via @outports */
-	pdata->child_names = devm_kzalloc(dev, pdata->nr_outport *
-					  sizeof(*pdata->child_names),
-					  GFP_KERNEL);
-	if (!pdata->child_names)
-		return -ENOMEM;
-
-	/* Port number on the child this component is connected to */
-	pdata->child_ports = devm_kzalloc(dev, pdata->nr_outport *
-					  sizeof(*pdata->child_ports),
-					  GFP_KERNEL);
-	if (!pdata->child_ports)
-		return -ENOMEM;
-
-	return 0;
-}
-
-int of_coresight_get_cpu(const struct device_node *node)
-{
-	int cpu;
-	bool found;
-	struct device_node *dn, *np;
-
-	dn = of_parse_phandle(node, "cpu", 0);
-
-	/* Affinity defaults to CPU0 */
-	if (!dn)
-		return 0;
-
-	for_each_possible_cpu(cpu) {
-		np = of_cpu_device_node_get(cpu);
-		found = (dn == np);
-		of_node_put(np);
-		if (found)
-			break;
+	list_for_each_entry(c, &pdev->clocks.list, list) {
+		if (clk_is_match(c->clk, clk))
+			return true;
 	}
-	of_node_put(dn);
-
-	/* Affinity to CPU0 if no cpu nodes are found */
-	return found ? cpu : 0;
+	return false;
 }
-EXPORT_SYMBOL_GPL(of_coresight_get_cpu);
-#endif
 
-
-/**
- * of_jesd204_dev_populate_topology() - use OF graph to find all elements
- *					of a jesd204_dev (clks, xcvrs, etc)
- * @sizeof_priv:        Space to allocate for private structure.
- **/
-int of_jesd204_dev_populate_topology(struct jesd204_dev *jdev)
+static int of_jesd204_dev_collect_clocks(struct jesd204_dev_priv *pdev,
+					 struct device_node *np,
+					 bool collect)
 {
-	struct of_endpoint endpoint, rendpoint;
+	struct device *dev = &pdev->jesd204_dev.dev;
+	struct jesd204_clocks *jclk;
+	int i, ret, count, count1;
+
+	count = of_count_phandle_with_args(np, "clocks", "#clock-cells");
+	if (count < 0)
+		return count;
+
+	/**
+	 * If user wants to provide clock-names, that's fine, but they need to
+	 * match the number of clock references provided.
+	 * These names are very helpful when debugging tons of clocks.
+	 */
+	count1 = of_property_count_strings(np, "clock-names");
+	if ((count1 > 0) && (count != count1)) {
+		dev_err(dev, "mismath `clock-names` with `clocks`\n");
+		return -EINVAL;
+	}
+
+	for (i = 0; i < count; i++) {
+		const char *name = NULL;
+		struct clk *c;
+
+		if (count1 > 0) {
+			ret = of_property_read_string_index(np, "clock-names",
+							    i, &name);
+			if (ret < 0)
+				return ret;
+		}
+
+		c = of_clk_get(np, i);
+		if (IS_ERR(c)) {
+			ret = PTR_ERR(c);
+			if (name)
+				dev_err(dev, "of_clk_get(%s) error %d\n",
+					name, ret);
+			else
+				dev_err(dev, "of_clk_get(%d) error %d\n",
+					i, ret);
+			return ret;
+		}
+
+		/**
+		 * If we're collecting clocks, we don't want clocks to exist
+		 * in list. If we're not collecting, we want clocks to exist
+		 * in list. In the latter case, the kref count will be
+		 * incremented.
+		 */
+		if (collect == of_jesd204_dev_find_clock(pdev, c)) {
+			if (name)
+				dev_err(dev, "Clock '%s' should %s "
+					"be in list\n",
+					name, collect ? "not" : "");
+			else
+				dev_err(dev, "Clock '%d' should %s "
+					"be in list\n",
+					i, collect ? "not" : "");
+			return -EINVAL;
+		}
+
+		if (!collect)
+			continue;
+
+		jclk = devm_kzalloc(dev, sizeof(struct jesd204_clocks),
+				    GFP_KERNEL);
+		if (!jclk)
+			return -ENOMEM;
+
+		jclk->clk = c;
+
+		list_add(&jclk->list, &pdev->clocks.list);
+	}
+
+	return count;
+}
+
+static int of_jesd204_dev_populate_clocks(struct jesd204_dev_priv *pdev)
+{
 	struct device_node *ep = NULL;
 	struct device_node *rparent;
 	struct device_node *rport;
 	struct device_node *node;
-	struct device *rdev;
-	int i = 0, ret = 0;
+	struct device *dev;
+	int ret;
 
-	if (!jdev)
-		return -EINVAL;
+	INIT_LIST_HEAD(&pdev->clocks.list);
 
-	node = jdev->dev.of_node;
-	/* Iterate through each port to discover topology */
+	dev  = &pdev->jesd204_dev.dev;
+	node = dev->of_node;
 	do {
-		pr_err("(%d) %s %d\n", i,  __func__, __LINE__);
-		/* Get a handle on a port */
 		ep = of_graph_get_next_endpoint(node, ep);
 		if (!ep)
 			break;
 
-#if 0
-		/*
-		 * No need to deal with input ports, processing for as
-		 * processing for output ports will deal with them.
-		 */
-		if (of_find_property(ep, "slave-mode", NULL))
-			continue;
-#endif
-
-		/* Get a handle on the local endpoint */
-		ret = of_graph_parse_endpoint(ep, &endpoint);
-
-		if (ret)
-			continue;
-
-#if 0
-		/* The local out port number */
-		pdata->outports[i] = endpoint.port;
-#endif
-		/*
-		 * Get a handle on the remote port and parent
-		 * attached to it.
-		 */
 		rparent = of_graph_get_remote_port_parent(ep);
 		rport = of_graph_get_remote_port(ep);
 
 		if (!rparent || !rport)
 			continue;
 
-		if (of_graph_parse_endpoint(rport, &rendpoint))
+		if (!of_find_property(rport, "output-clocks", NULL))
 			continue;
 
-		rdev = of_jesd204_get_endpoint_device(rparent);
-		if (!rdev)
-			return -EPROBE_DEFER;
-#if 0
-		pdata->child_names[i] = dev_name(rdev);
-		pdata->child_ports[i] = rendpoint.id;
-#endif
+		if (of_find_property(rport, "input-clocks", NULL)) {
+			dev_warn(dev, "Endpoint cannot have both "
+				 "input & outputs clocks");
+			return -EINVAL;
+		}
 
-		i++;
+		ret = of_jesd204_dev_collect_clocks(pdev, rport, true);
+		if (ret < 0) {
+			dev_err(dev, "of_jesd204_dev_populate_clocks(%s) "
+				"failed: %d", rparent->name, ret);
+			return ret;
+		}
+
 	} while (ep);
+
+	return 0;
+}
+
+static int of_jesd204_dev_init_clocks(struct jesd204_dev_priv *pdev)
+{
+	struct device_node *ep = NULL;
+	struct device_node *rparent;
+	struct device_node *rport;
+	struct device_node *node;
+	struct device *dev;
+	int ret;
+
+	dev  = &pdev->jesd204_dev.dev;
+	node = dev->of_node;
+	do {
+		ep = of_graph_get_next_endpoint(node, ep);
+		if (!ep)
+			break;
+
+		rparent = of_graph_get_remote_port_parent(ep);
+		rport = of_graph_get_remote_port(ep);
+
+		if (!rparent || !rport)
+			continue;
+
+		if (!of_find_property(rport, "input-clocks", NULL))
+			continue;
+
+		/* No need to do sanity checking for `output-clocks` */
+
+		ret = of_jesd204_dev_collect_clocks(pdev, rport, false);
+		if (ret < 0) {
+			dev_err(dev, "of_jesd204_dev_init_clocks(%s) "
+				"failed: %d", rparent->name, ret);
+			return ret;
+		}
+
+	} while (ep);
+
+	return 0;
+}
+
+/**
+ * of_jesd204_dev_populate_topology() - use OF graph to find all elements
+ *					of a jesd204_dev (clks, xcvrs, etc)
+ **/
+int of_jesd204_dev_populate_topology(struct jesd204_dev *jdev)
+{
+	struct jesd204_dev_priv *pdev = jesd204_dev_to_priv(jdev);
+	int ret;
+
+	if (!jdev)
+		return -EINVAL;
+
+	/* Collect all clock sources first */
+	ret = of_jesd204_dev_populate_clocks(pdev);
+	if (ret < 0)
+		return ret;
+
+	ret = of_jesd204_dev_init_clocks(pdev);
+	if (ret < 0)
+		return ret;
 
 	return 0;
 }

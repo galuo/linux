@@ -18,8 +18,9 @@
 /* Event interface flags */
 #define JESD204_BUSY_BIT_POS	BIT(0)
 
-struct jesd204_subdev {
+struct jesd204_clocks {
 	struct list_head list;
+	struct clk *clk;
 };
 
 /**
@@ -41,6 +42,7 @@ struct jesd204_dev_priv {
 	struct module			*driver_module;
 	struct cdev			chrdev;
 	unsigned long			flags;
+	struct jesd204_clocks		clocks;
 };
 
 static inline struct jesd204_dev_priv *jesd204_dev_to_priv(
