@@ -85,6 +85,19 @@
 			adi,signal-source = <SOURCE_SYSREF_VCO>;
 		};
 
+		port {
+			clocks = <&clk0_ad9528 13>, <&clk0_ad9528 1>,
+				 <&clk0_ad9528 12>, <&clk0_ad9528 3>;
+			clock-names = "dev_clk", "fmc_clk",
+				      "sysref_dev_clk", "sysref_fmc_clk";
+			#clock-cells = <1>;
+
+			output-clocks;
+
+			clk0_ad9528_output_clocks: endpoint {
+				remote-endpoint = <&clk0_ad9528_output_clocks_mon>;
+			};
+		};
 	};
 
 
@@ -94,14 +107,6 @@
 
 		/* SPI Setup */
 		spi-max-frequency = <25000000>;
-
-		/* Clocks */
-		clocks = <&axi_ad9371_rx_jesd>, <&axi_ad9371_tx_jesd>,
-			<&axi_ad9371_rx_os_jesd>, <&clk0_ad9528 13>,
-			<&clk0_ad9528 1>,  <&clk0_ad9528 12>, <&clk0_ad9528 3>;
-		clock-names = "jesd_rx_clk", "jesd_tx_clk",
-			"jesd_rx_os_clk", "dev_clk", "fmc_clk",
-			"sysref_dev_clk", "sysref_fmc_clk";
 
 		clock-output-names = "rx_sampl_clk", "rx_os_sampl_clk", "tx_sampl_clk";
 		#clock-cells = <1>;
@@ -167,6 +172,95 @@
 		adi,sniffer-profile-rx-bbf-3db-corner_khz = <100000>;
 		adi,sniffer-profile-rx-dec5-decimation = <5>;
 		adi,sniffer-profile-rx-fir-decimation = <4>;
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+
+				input-clocks;
+				/* These have been moved from the parent node here,
+				 * in order to be monitored by the JESD204 device.
+				 * This also means that the JESD204 device will handle init.
+				 */
+				clocks = <&axi_ad9371_rx_jesd>, <&axi_ad9371_tx_jesd>,
+					<&axi_ad9371_rx_os_jesd>, <&clk0_ad9528 13>,
+					<&clk0_ad9528 1>,  <&clk0_ad9528 12>, <&clk0_ad9528 3>;
+				clock-names = "jesd_rx_clk", "jesd_tx_clk",
+					"jesd_rx_os_clk", "dev_clk", "fmc_clk",
+					"sysref_dev_clk", "sysref_fmc_clk";
+				#clock-cells = <1>;
+
+				trx0_ad9371_input_clocks: endpoint {
+					remote-endpoint = <&trx0_ad9371_input_clocks_mon>;
+				};
+			};
+
+			port@1 {
+				reg = <1>;
+
+				output-clocks;
+				/**
+				 * List of clock names to monitor, note that this list
+				 * must be a (sub)set of the parent `clock-output-names` prop
+				 */
+				clocks = <&trx0_ad9371 0>, <&trx0_ad9371 1>, <&trx0_ad9371 2>;
+				clock-names = "rx_sampl_clk", "rx_os_sampl_clk", "tx_sampl_clk";
+				#clock-cells = <1>;
+
+				trx0_ad9371_output_clocks: endpoint {
+					remote-endpoint = <&trx0_ad9371_output_clocks_mon>;
+				};
+			};
+		};
+
 	};
 };
 
+#include <dt-bindings/jesd204/jesd204.h>
+
+/**
+ * The generic JESD204 devices are added under the FPGA AXI bus,
+ * but they can reside under some other bus if needed
+ */
+&fpga_axi {
+
+	jesd204_device_rx: jesd204-device-rx@45160000 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		compatible = "jesd204-device-rx";
+		reg = <0x45160000 0x1000>;
+
+		jesd204_revision = <JESD204_REV_B>;
+		jesd204_subclass = <JESD204_SUBCLASS_1>;
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+				clk0_ad9528_output_clocks_mon: endpoint {
+					remote-endpoint = <&clk0_ad9528_output_clocks>;
+				};
+			};
+
+			port@1 {
+				reg = <1>;
+				trx0_ad9371_input_clocks_mon: endpoint {
+					remote-endpoint = <&trx0_ad9371_input_clocks>;
+				};
+			};
+
+			port@2 {
+				reg = <2>;
+				trx0_ad9371_output_clocks_mon: endpoint {
+					remote-endpoint = <&trx0_ad9371_output_clocks>;
+				};
+			};
+		};
+	};
+
+};
