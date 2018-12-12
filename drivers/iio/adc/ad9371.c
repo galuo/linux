@@ -335,6 +335,7 @@ static bool ad9371_check_sysref_rate(unsigned int lmfc, unsigned int sysref)
 	return mod <= div || mod >= sysref - div;
 }
 
+#if 0
 static int ad9371_update_sysref(struct ad9371_rf_phy *phy, u32 lmfc)
 {
 	unsigned int n;
@@ -406,6 +407,7 @@ static int ad9371_update_sysref(struct ad9371_rf_phy *phy, u32 lmfc)
 
 	return ret;
 }
+#endif
 
 static int ad9371_set_radio_state(struct ad9371_rf_phy *phy, enum ad9371_radio_states state)
 {
@@ -670,6 +672,7 @@ static int ad9371_setup(struct ad9371_rf_phy *phy)
 	/**** Mykonos Initialization ***/
 	/*******************************/
 
+#if 0
 	dev_clk = clk_round_rate(phy->dev_clk, mykDevice->clocks->deviceClock_kHz * 1000);
 	fmc_clk = clk_round_rate(phy->fmc_clk, mykDevice->clocks->deviceClock_kHz * 1000);
 
@@ -704,6 +707,7 @@ static int ad9371_setup(struct ad9371_rf_phy *phy)
 	ret = ad9371_update_sysref(phy, lmfc);
 	if (ret < 0)
 		goto out;
+#endif
 
 	/* Toggle RESETB pin on Mykonos device */
 
@@ -918,11 +922,13 @@ static int ad9371_setup(struct ad9371_rf_phy *phy)
 		goto out;
 	}
 
+#if 0
 	ret = clk_prepare_enable(phy->jesd_tx_clk);
 	if (ret < 0) {
 		dev_err(&phy->spi->dev, "jesd_tx_clk enable failed (%d)", ret);
 		goto out;
 	}
+#endif
 
 	/*** < User: make sure BBIC JESD framer is actively transmitting CGS> ***/
 	ret = MYKONOS_enableSysrefToDeframer(mykDevice, 1);
@@ -930,25 +936,30 @@ static int ad9371_setup(struct ad9371_rf_phy *phy)
 		dev_err(&phy->spi->dev, "%s (%d)",
 			getMykonosErrorMessage(ret), ret);
 		ret = -EFAULT;
-		goto out_disable_tx_clk;
+		goto out;
+		//out_disable_tx_clk;
 	}
 
 	/*** < User Sends SYSREF Here > ***/
 
 	ad9371_sysref_req(phy, SYSREF_CONT_ON);
 
+#if 0
 	ret = clk_prepare_enable(phy->jesd_rx_clk);
 	if (ret < 0) {
 		dev_err(&phy->spi->dev, "jesd_rx_clk enable failed (%d)", ret);
-		goto out_disable_tx_clk;
+		goto out;
+		//out_disable_tx_clk;
 	}
 
 	ret = clk_prepare_enable(phy->jesd_rx_os_clk);
 	if (ret < 0) {
 		dev_err(&phy->spi->dev, "jesd_rx_os_clk enable failed (%d)", ret);
-		goto out_disable_rx_clk;
+		goto out;
+		//out_disable_rx_clk;
 	}
 
+#endif
 	ad9371_sysref_req(phy, SYSREF_CONT_OFF);
 
 	/*** <  User: Insert User BBIC JESD Sync Verification Code Here > ***/
@@ -992,7 +1003,7 @@ static int ad9371_setup(struct ad9371_rf_phy *phy)
 		dev_err(&phy->spi->dev, "%s (%d)",
 			getMykonosErrorMessage(ret), ret);
 		ret = -EFAULT;
-		goto out_disable_obs_rx_clk;
+		goto out;//out_disable_obs_rx_clk;
 	}
 
 	/* Function to turn radio on, Enables transmitters and receivers */
@@ -1003,7 +1014,7 @@ static int ad9371_setup(struct ad9371_rf_phy *phy)
 		dev_err(&phy->spi->dev, "%s (%d)",
 			getMykonosErrorMessage(ret), ret);
 		ret = -EFAULT;
-		goto out_disable_obs_rx_clk;
+		goto out;//out_disable_obs_rx_clk;
 	}
 
 	ret = MYKONOS_setupRxAgc(mykDevice);
@@ -1011,14 +1022,14 @@ static int ad9371_setup(struct ad9371_rf_phy *phy)
 		dev_err(&phy->spi->dev, "%s (%d)",
 			getMykonosErrorMessage(ret), ret);
 		ret = -EFAULT;
-		goto out_disable_obs_rx_clk;
+		goto out;//out_disable_obs_rx_clk;
 	}
 
 	ret = ad9371_set_radio_state(phy, RADIO_ON);
 	if (ret) {
 		dev_err(&phy->spi->dev, "%s (%d)",
 			getMykonosErrorMessage(ret), ret);
-		goto out_disable_obs_rx_clk;
+		goto out;//out_disable_obs_rx_clk;
 	}
 
 	/* Allow TxQEC to run when user is not actively using ORx receive path */
@@ -1027,7 +1038,7 @@ static int ad9371_setup(struct ad9371_rf_phy *phy)
 		dev_err(&phy->spi->dev, "%s (%d)",
 			getMykonosErrorMessage(ret), ret);
 		ret = -EFAULT;
-		goto out_disable_obs_rx_clk;
+		goto out;//out_disable_obs_rx_clk;
 	}
 
 	ret = MYKONOS_setupAuxAdcs(mykDevice, 4, 1);
@@ -1035,7 +1046,7 @@ static int ad9371_setup(struct ad9371_rf_phy *phy)
 		dev_err(&phy->spi->dev, "%s (%d)",
 			getMykonosErrorMessage(ret), ret);
 		ret = -EFAULT;
-		goto out_disable_obs_rx_clk;
+		goto out;//out_disable_obs_rx_clk;
 	}
 
 	ret = MYKONOS_setupAuxDacs(mykDevice);
@@ -1043,7 +1054,7 @@ static int ad9371_setup(struct ad9371_rf_phy *phy)
 		dev_err(&phy->spi->dev, "%s (%d)",
 			getMykonosErrorMessage(ret), ret);
 		ret = -EFAULT;
-		goto out_disable_obs_rx_clk;
+		goto out;//out_disable_obs_rx_clk;
 	}
 
 	ret = MYKONOS_setupGpio(mykDevice);
@@ -1051,7 +1062,8 @@ static int ad9371_setup(struct ad9371_rf_phy *phy)
 		dev_err(&phy->spi->dev, "%s (%d)",
 			getMykonosErrorMessage(ret), ret);
 		ret = -EFAULT;
-		goto out_disable_obs_rx_clk;
+		goto out;
+		//out_disable_obs_rx_clk;
 	}
 
 	clk_set_rate(phy->clks[RX_SAMPL_CLK],
@@ -1069,12 +1081,14 @@ static int ad9371_setup(struct ad9371_rf_phy *phy)
 
 	return 0;
 
+#if 0
 out_disable_obs_rx_clk:
 	clk_disable_unprepare(phy->jesd_rx_os_clk);
 out_disable_rx_clk:
 	clk_disable_unprepare(phy->jesd_rx_clk);
 out_disable_tx_clk:
 	clk_disable_unprepare(phy->jesd_tx_clk);
+#endif
 
 out:
 	phy->is_initialized = 0;
@@ -1086,11 +1100,13 @@ static int ad9371_reinit(struct ad9371_rf_phy *phy)
 {
 	int ret;
 
+#if 0
 	if (phy->is_initialized) {
 		clk_disable_unprepare(phy->jesd_rx_clk);
 		clk_disable_unprepare(phy->jesd_rx_os_clk);
 		clk_disable_unprepare(phy->jesd_tx_clk);
 	}
+#endif
 
 	ret = ad9371_setup(phy);
 	if (ret)
@@ -3989,9 +4005,17 @@ static int ad9371_probe(struct spi_device *spi)
 
 	dev_info(&spi->dev, "%s : enter", __func__);
 
+#if 0
 	clk = devm_clk_get(&spi->dev, "jesd_rx_clk");
-	if (IS_ERR(clk))
+	if (IS_ERR(clk)) {
+		dev_err(&spi->dev, "jesd_rx_clk NOK\n");
+
 		return PTR_ERR(clk);
+	} else {
+		dev_err(&spi->dev, "jesd_rx_clk OK\n");
+	}
+#endif
+	dev_err(&spi->dev, "%s %d\n", __func__, __LINE__);
 
 	indio_dev = devm_iio_device_alloc(&spi->dev, sizeof(*phy));
 	if (indio_dev == NULL)
@@ -4000,11 +4024,13 @@ static int ad9371_probe(struct spi_device *spi)
 	phy = iio_priv(indio_dev);
 	phy->indio_dev = indio_dev;
 	phy->spi = spi;
+	dev_err(&spi->dev, "%s %d\n", __func__, __LINE__);
 
 	ret = ad9371_alloc_mykonos_device(phy);
 	if (ret < 0)
 		return ret;
 
+	dev_err(&spi->dev, "%s %d\n", __func__, __LINE__);
 	phy->pdata = ad9371_phy_parse_dt(indio_dev, &spi->dev);
 	if (phy->pdata == NULL)
 		return -EINVAL;
@@ -4015,7 +4041,11 @@ static int ad9371_probe(struct spi_device *spi)
 	phy->sysref_req_gpio = devm_gpiod_get(&spi->dev, "sysref_req",
 					      GPIOD_OUT_HIGH);
 
+	dev_err(&spi->dev, "%s %d\n", __func__, __LINE__);
+
+#if 0
 	phy->jesd_rx_clk = clk;
+#endif
 
 	phy->mykDevice->spiSettings->spi 		 = spi;
 	phy->mykDevice->spiSettings->writeBitPolarity    = 0;
@@ -4025,9 +4055,18 @@ static int ad9371_probe(struct spi_device *spi)
 	phy->mykDevice->spiSettings->autoIncAddrUp       = 1;
 	phy->mykDevice->spiSettings->fourWireMode        = 1;
 
+	dev_err(&spi->dev, "%s %d\n", __func__, __LINE__);
+
+#if 0
 	phy->jesd_tx_clk = devm_clk_get(&spi->dev, "jesd_tx_clk");
-	if (IS_ERR(phy->jesd_tx_clk))
+	if (IS_ERR(phy->jesd_tx_clk)) {
+		dev_err(&spi->dev, "jesd_tx_clk NOK\n");
+
 		return PTR_ERR(phy->jesd_tx_clk);
+	} else {
+		dev_err(&spi->dev, "jesd_rx_clk OK\n");
+
+	}
 
 	phy->jesd_rx_os_clk = devm_clk_get(&spi->dev, "jesd_rx_os_clk");
 	if (IS_ERR(phy->jesd_rx_os_clk))
@@ -4051,6 +4090,9 @@ static int ad9371_probe(struct spi_device *spi)
 	ret = clk_prepare_enable(phy->dev_clk);
 	if (ret)
 		return ret;
+#endif
+
+	dev_err(&spi->dev, "%s %d\n", __func__, __LINE__);
 
 	ret = request_firmware(&phy->fw, FIRMWARE, &spi->dev);
 	if (ret) {
@@ -4058,7 +4100,9 @@ static int ad9371_probe(struct spi_device *spi)
 			"request_firmware() failed with %d\n", ret);
 		return ret;
 	}
+	dev_err(&spi->dev, "%s %d\n", __func__, __LINE__);
 
+#if 0
 	ret = ad9371_setup(phy);
 	if (ret < 0) {
 		/* Try once more */
@@ -4066,6 +4110,8 @@ static int ad9371_probe(struct spi_device *spi)
 		if (ret < 0)
 			goto out_unregister_notifier;
 	}
+#endif
+	dev_err(&spi->dev, "%s %d\n", __func__, __LINE__);
 
 	ad9371_clk_register(phy, "-rx_sampl_clk", NULL, NULL,
 			    CLK_GET_RATE_NOCACHE | CLK_IGNORE_UNUSED , RX_SAMPL_CLK);
@@ -4075,9 +4121,11 @@ static int ad9371_probe(struct spi_device *spi)
 
 	ad9371_clk_register(phy, "-tx_sampl_clk", NULL, NULL,
 			    CLK_GET_RATE_NOCACHE | CLK_IGNORE_UNUSED, TX_SAMPL_CLK);
+	dev_err(&spi->dev, "%s %d\n", __func__, __LINE__);
 
 	phy->clk_data.clks = phy->clks;
 	phy->clk_data.clk_num = NUM_AD9371_CLKS;
+	dev_err(&spi->dev, "%s %d\n", __func__, __LINE__);
 
 	ret = of_clk_add_provider(spi->dev.of_node,
 				  of_clk_src_onecell_get, &phy->clk_data);
@@ -4098,6 +4146,7 @@ static int ad9371_probe(struct spi_device *spi)
 	phy->bin.write = ad9371_profile_bin_write;
 	phy->bin.read = ad9371_profile_bin_read;
 	phy->bin.size = 8192;
+	dev_err(&spi->dev, "%s %d\n", __func__, __LINE__);
 
 	sysfs_bin_attr_init(&phy->bin_gt);
 	phy->bin_gt.attr.name = "gain_table_config";
@@ -4111,6 +4160,7 @@ static int ad9371_probe(struct spi_device *spi)
 		indio_dev->name = spi->dev.of_node->name;
 	else
 		indio_dev->name = "ad9371-phy";
+	dev_err(&spi->dev, "%s %d\n", __func__, __LINE__);
 
 	indio_dev->info = IS_AD9375(phy) ? &ad9375_phy_info : &ad9371_phy_info;
 	indio_dev->modes = INDIO_DIRECT_MODE;
@@ -4120,22 +4170,27 @@ static int ad9371_probe(struct spi_device *spi)
 	ret = iio_device_register(indio_dev);
 	if (ret < 0)
 		goto out_clk_del_provider;
+	dev_err(&spi->dev, "%s %d\n", __func__, __LINE__);
 
 	ret = ad9371_register_axi_converter(phy);
 	if (ret < 0)
 		goto out_iio_device_unregister;
+	dev_err(&spi->dev, "%s %d\n", __func__, __LINE__);
 
 	ret = sysfs_create_bin_file(&indio_dev->dev.kobj, &phy->bin);
 	if (ret < 0)
 		goto out_iio_device_unregister;
+	dev_err(&spi->dev, "%s %d\n", __func__, __LINE__);
 
 	ret = sysfs_create_bin_file(&indio_dev->dev.kobj, &phy->bin_gt);
 	if (ret < 0)
 		goto out_iio_device_unregister;
+	dev_err(&spi->dev, "%s %d\n", __func__, __LINE__);
 
 	ret = ad9371_register_debugfs(indio_dev);
 	if (ret < 0)
 		dev_warn(&spi->dev, "%s: failed to register debugfs", __func__);
+	dev_err(&spi->dev, "%s %d\n", __func__, __LINE__);
 
 	MYKONOS_getArmVersion(phy->mykDevice, &vers[0], &vers[1], &vers[2], &buildType);
 	MYKONOS_getApiVersion(phy->mykDevice, &api_vers[0], &api_vers[1], &api_vers[2], &api_vers[3]);
