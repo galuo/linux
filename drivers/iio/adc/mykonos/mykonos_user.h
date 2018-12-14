@@ -21,7 +21,7 @@ extern "C" {
 #endif
 
 /* turns verbose messaging on */
-#define MYKONOS_VERBOSE 0
+#define MYKONOS_VERBOSE 1
 #define MYK_ENABLE_SPIWRITEARRAY 1
 
 /* 3 Bytes per SPI transaction * 341 transactions = ~1024 byte buffer size */

@@ -4558,7 +4558,7 @@ mykonosGpioErr_t MYKONOS_setupTempSensor(mykonosDevice_t *device, mykonosTempSen
     const uint8_t OFFSET_OVERRIDE_MASK = 0x10;
 
 #ifdef MYKONOS_VERBOSE
-    CMB_writeToLog(ADIHAL_LOG_ERROR, device->spiSettings->chipSelectIndex, MYKONOS_ERR_GPIO_OK, "MYKONOS_setupTempSensor()\n");
+    CMB_writeToLog(ADIHAL_LOG_MESSAGE, device->spiSettings->chipSelectIndex, MYKONOS_ERR_GPIO_OK, "MYKONOS_setupTempSensor()\n");
 #endif
 
     /* Check for structure initialisation mykonosTempSensorConfig_t */
@@ -4649,7 +4649,7 @@ mykonosGpioErr_t MYKONOS_getTempSensorConfig(mykonosDevice_t *device, mykonosTem
     const uint8_t TEMP_FUSE_SHIFT = 0x04;
 
 #ifdef MYKONOS_VERBOSE
-    CMB_writeToLog(ADIHAL_LOG_ERROR, device->spiSettings->chipSelectIndex, MYKONOS_ERR_GPIO_OK, "MYKONOS_getTempSensorConfig()\n");
+    CMB_writeToLog(ADIHAL_LOG_MESSAGE, device->spiSettings->chipSelectIndex, MYKONOS_ERR_GPIO_OK, "MYKONOS_getTempSensorConfig()\n");
 #endif
 
     /* Check tempSensor null parameter passed */
@@ -4703,7 +4703,7 @@ mykonosGpioErr_t MYKONOS_startTempMeasurement(mykonosDevice_t *device)
     const uint8_t MEASUREMENT_MASK = 0x01;
 
 #ifdef MYKONOS_VERBOSE
-    CMB_writeToLog(ADIHAL_LOG_ERROR, device->spiSettings->chipSelectIndex, MYKONOS_ERR_GPIO_OK, "MYKONOS_startTempMeasurement()\n");
+    CMB_writeToLog(ADIHAL_LOG_MESSAGE, device->spiSettings->chipSelectIndex, MYKONOS_ERR_GPIO_OK, "MYKONOS_startTempMeasurement()\n");
 #endif
 
     /* Write the lock bit to ensure that a valid measurement is achieved */
@@ -4763,7 +4763,7 @@ mykonosGpioErr_t MYKONOS_readTempSensor(mykonosDevice_t *device, mykonosTempSens
     const uint8_t TEMP_LOCK = 0x80;
 
 #ifdef MYKONOS_VERBOSE
-    CMB_writeToLog(ADIHAL_LOG_ERROR, device->spiSettings->chipSelectIndex, MYKONOS_ERR_GPIO_OK, "MYKONOS_readTempSensor()\n");
+    CMB_writeToLog(ADIHAL_LOG_MESSAGE, device->spiSettings->chipSelectIndex, MYKONOS_ERR_GPIO_OK, "MYKONOS_readTempSensor()\n");
 #endif
 
     if (tempStatus == NULL)

@@ -5,7 +5,7 @@
  *
  * Licensed under the GPL-2.
  */
-
+#define DEBUG
 #include <linux/device.h>
 #include <linux/kernel.h>
 #include <linux/slab.h>
@@ -336,13 +336,16 @@ static int ad9528_write(struct iio_dev *indio_dev, unsigned addr, unsigned val)
 			AD9528_ADDR(addr));
 	st->data[1].d32 = cpu_to_be32(val);
 
-	dev_dbg(&indio_dev->dev, "Write 0x%x: 0x%x\n",
-			AD9528_ADDR(addr) - AD9528_TRANSF_LEN(addr) + 1, val);
+        dev_dbg(&indio_dev->dev, "Write 0x%x: 0x%x\n",
+                        AD9528_ADDR(addr) - AD9528_TRANSF_LEN(addr) + 1, val);
 
 	ret = spi_sync_transfer(st->spi, t, ARRAY_SIZE(t));
 
 	if (ret < 0)
-		dev_err(&indio_dev->dev, "write failed (%d)", ret);
+        {
+                dev_err(&indio_dev->dev, "write failed (%d)", ret);
+                dev_dbg(&indio_dev->dev, "write failed (%d),addr(%d),val(%d)\n", ret,addr,val);
+        }
 
 	return ret;
 }
@@ -350,12 +353,12 @@ static int ad9528_write(struct iio_dev *indio_dev, unsigned addr, unsigned val)
 static int ad9528_poll(struct iio_dev *indio_dev,
 		unsigned addr, unsigned mask, unsigned data)
 {
-	unsigned timeout = 100;
-
+        unsigned timeout = 100;
+        dev_dbg(&indio_dev->dev,"%s : enter\n", __func__);
 	while (((ad9528_read(indio_dev, addr) & mask) != data)
 			&& --timeout)
-		msleep(1);
-
+                msleep(10);
+        dev_dbg(&indio_dev->dev,"timeout(%d),mask(0x%x),data(0x%x)\n", timeout,mask,data);
 	return timeout ? 0 : -ETIMEDOUT;
 }
 
@@ -840,6 +843,7 @@ static int ad9528_setup(struct iio_dev *indio_dev)
 	unsigned int pll2_ndiv, pll2_ndiv_a_cnt, pll2_ndiv_b_cnt;
 	int ret, i;
 
+        dev_dbg(&indio_dev->dev,"enter ad9528_setup.\n");
 	ret = ad9528_write(indio_dev, AD9528_SERIAL_PORT_CONFIG,
 			AD9528_SER_CONF_SOFT_RESET |
 			((st->spi->mode & SPI_3WIRE || pdata->spi3wire)? 0 :
@@ -857,6 +861,7 @@ static int ad9528_setup(struct iio_dev *indio_dev)
 		return ret;
 
 	ret = ad9528_read(indio_dev, AD9528_CHIP_ID);
+        dev_dbg(&indio_dev->dev,"ad9528_read AD9528_CHIP_ID(0x%x),0x%x.\n",AD9528_CHIP_ID,ret);
 	if (ret < 0)
 		return ret;
 
@@ -869,6 +874,7 @@ static int ad9528_setup(struct iio_dev *indio_dev)
 	/*
 	 * PLL1 Setup
 	 */
+        dev_dbg(&indio_dev->dev,"PLL1 Setup.\n");
 	ret = ad9528_write(indio_dev, AD9528_PLL1_REF_A_DIVIDER,
 		pdata->refa_r_div);
 	if (ret < 0)
@@ -917,7 +923,7 @@ static int ad9528_setup(struct iio_dev *indio_dev)
 	/*
 	 * PLL2 Setup
 	 */
-
+        dev_dbg(&indio_dev->dev,"PLL2 Setup.\n");
 	pll2_ndiv = pdata->pll2_vco_div_m1 * pdata->pll2_n2_div;
 	if (!ad9528_pll2_valid_calib_div(pll2_ndiv)) {
 		dev_err(&st->spi->dev,
@@ -998,6 +1004,7 @@ static int ad9528_setup(struct iio_dev *indio_dev)
 	st->clk_data.clks = st->clks;
 	st->clk_data.clk_num = AD9528_NUM_CHAN;
 
+        dev_dbg(&indio_dev->dev,"Channels Setup.\n");
 	for (i = 0; i < pdata->num_channels; i++) {
 		chan = &pdata->channels[i];
 		if (chan->channel_num >= AD9528_NUM_CHAN)
@@ -1088,7 +1095,10 @@ static int ad9528_setup(struct iio_dev *indio_dev)
 	ret = ad9528_poll(indio_dev, AD9528_READBACK,
 			AD9528_IS_CALIBRATING, 0);
 	if (ret < 0)
+        {
+                dev_dbg(&indio_dev->dev,"ad9528_poll failed.\n");
 		return ret;
+        }
 
 	sysref_ctrl |= AD9528_SYSREF_PATTERN_REQ;
 	ret = ad9528_write(indio_dev, AD9528_SYSREF_CTRL, sysref_ctrl);
@@ -1122,11 +1132,17 @@ static int ad9528_setup(struct iio_dev *indio_dev)
 
 	ret = ad9528_io_update(indio_dev);
 	if (ret < 0)
+        {
+                dev_dbg(&indio_dev->dev,"ad9528_io_update failed.\n");
 		return ret;
+        }
 
 	ret = ad9528_sync(indio_dev);
 	if (ret < 0)
+        {
+                dev_dbg(&indio_dev->dev,"ad9528_sync failed.\n");
 		return ret;
+        }
 
 	for (i = 0; i < pdata->num_channels; i++) {
 		struct clk *clk;
@@ -1138,7 +1154,10 @@ static int ad9528_setup(struct iio_dev *indio_dev)
 		clk = ad9528_clk_register(indio_dev, chan->channel_num,
 						  !chan->output_dis);
 		if (IS_ERR(clk))
+                {
+                        dev_dbg(&indio_dev->dev,"ad9528_clk_register failed.\n");
 			return PTR_ERR(clk);
+                }
 	}
 
 	of_clk_add_provider(st->spi->dev.of_node,
@@ -1327,6 +1346,7 @@ static int ad9528_probe(struct spi_device *spi)
 	struct gpio_desc *status1_gpio;
 	int ret;
 
+        dev_info(&spi->dev,"enter ad9528_probe.\n");
 	if (spi->dev.of_node)
 		pdata = ad9528_parse_dt(&spi->dev);
 	else
@@ -1349,7 +1369,10 @@ static int ad9528_probe(struct spi_device *spi)
 	if (!IS_ERR(st->reg)) {
 		ret = regulator_enable(st->reg);
 		if (ret)
+                {
+                        dev_dbg(&spi->dev,"regulator_enable failed.\n");
 			return ret;
+                }
 	}
 
 	status0_gpio = devm_gpiod_get_optional(&spi->dev,
@@ -1384,11 +1407,17 @@ static int ad9528_probe(struct spi_device *spi)
 
 	ret = ad9528_setup(indio_dev);
 	if (ret < 0)
+        {
+                dev_dbg(&spi->dev,"ad9528_setup failed.\n");
 		goto error_disable_reg;
+        }
 
 	ret = iio_device_register(indio_dev);
 	if (ret)
+        {
+                dev_dbg(&spi->dev,"iio_device_register failed.\n");
 		goto error_disable_reg;
+        }
 
 	return 0;
 

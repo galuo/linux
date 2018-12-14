@@ -13640,6 +13640,9 @@ mykonosErr_t MYKONOS_getArmVersion(mykonosDevice_t *device, uint8_t *majorVer, u
 
     switch (ver[4] & validBuilds)
     {
+        case MYK_BUILD_RELEASE:
+                *buildType = MYK_BUILD_RELEASE;
+                break;
         case MYK_BUILD_DEBUG:
                 *buildType = MYK_BUILD_DEBUG;
                 break;
@@ -13648,7 +13651,7 @@ mykonosErr_t MYKONOS_getArmVersion(mykonosDevice_t *device, uint8_t *majorVer, u
                 break;
         default:
                 *buildType = MYK_BUILD_RELEASE;
-                break;
+                return MYKONOS_ERR_FAILED;
     }
 
     return MYKONOS_ERR_OK;

@@ -5,8 +5,8 @@
  *
  * Licensed under the GPL-2.
  */
-//#define DEBUG
-//#define _DEBUG
+#define DEBUG
+#define _DEBUG
 #include <linux/module.h>
 #include <linux/device.h>
 #include <linux/kernel.h>
@@ -517,6 +517,7 @@ static int ad9371_setup(struct ad9371_rf_phy *phy)
 	uint32_t initCalMask;
 	unsigned int i;
 
+        dev_info(&phy->spi->dev,"%s : enter", __func__);
 	mykonosDevice_t *mykDevice = phy->mykDevice;
 
 	phy->tracking_cal_mask = TRACK_RX1_QEC |
@@ -548,8 +549,8 @@ static int ad9371_setup(struct ad9371_rf_phy *phy)
 		clk_set_rate(phy->fmc_clk, (unsigned long) dev_clk);
 		clk_set_rate(phy->dev_clk, (unsigned long) dev_clk);
 	} else {
-		dev_err(&phy->spi->dev, "Requesting device clock %u failed got %ld",
-			mykDevice->clocks->deviceClock_kHz * 1000, dev_clk);
+                dev_err(&phy->spi->dev, "Requesting device clock %u failed, dev_clk(%ld), fmc_clk(%ld)",
+                        mykDevice->clocks->deviceClock_kHz * 1000, dev_clk,fmc_clk);
 		return -EINVAL;
 	}
 
@@ -565,9 +566,9 @@ static int ad9371_setup(struct ad9371_rf_phy *phy)
 			mykDevice->obsRx->framer->M *
 			(20 / hweight8(mykDevice->obsRx->framer->serializerLanesEnabled));
 
-	ret = clk_set_rate(phy->jesd_rx_os_clk, lane_rate_kHz);
-	if (ret < 0)
-		return ret;
+        ret = clk_set_rate(phy->jesd_rx_os_clk, lane_rate_kHz);
+        if (ret < 0)
+                return ret;
 
 	lane_rate_kHz = mykDevice->tx->txProfile->iqRate_kHz *
 			mykDevice->tx->deframer->M *
@@ -605,6 +606,7 @@ static int ad9371_setup(struct ad9371_rf_phy *phy)
 			return -ENODEV;
 		}
 	}
+        dev_dbg(&phy->spi->dev,"luo:%s : MYKONOS_getProductId %d.\n", __func__,phy->device_id);
 
 	/*******************************/
 	/***** CLKPLL Status Check *****/
@@ -655,18 +657,32 @@ static int ad9371_setup(struct ad9371_rf_phy *phy)
 	mykError = MYKONOS_loadArmFromBinary(mykDevice,
 					     (u8 *) phy->fw->data,
 					     phy->fw->size);
+
 	if (mykError != MYKONOS_ERR_OK) {
 		dev_err(&phy->spi->dev, "%s (%d)",
 			getMykonosErrorMessage(mykError), mykError);
 		return -EFAULT;
 	}
+        //dev_info(&phy->spi->dev,"luo:%s : MYKONOS_loadArmFromBinary phy->fw->size(%d) success.\n", __func__,phy->fw->size);
 
 	/*******************************/
 	/**** Set RF PLL Frequencies ***/
 	/*******************************/
 	mykError = MYKONOS_setRfPllFrequency(mykDevice, RX_PLL, mykDevice->rx->rxPllLoFrequency_Hz);
+        if (mykError != MYKONOS_ERR_OK) {
+                dev_err(&phy->spi->dev, "MYKONOS_setRfPllFrequency RX_PLL %s (%d)",
+                        getMykonosErrorMessage(mykError), mykError);
+        }
 	mykError = MYKONOS_setRfPllFrequency(mykDevice, TX_PLL, mykDevice->tx->txPllLoFrequency_Hz);
-	mykError = MYKONOS_setRfPllFrequency(mykDevice, SNIFFER_PLL, mykDevice->obsRx->snifferPllLoFrequency_Hz);
+        if (mykError != MYKONOS_ERR_OK) {
+                dev_err(&phy->spi->dev, "MYKONOS_setRfPllFrequency TX_PLL %s (%d)",
+                        getMykonosErrorMessage(mykError), mykError);
+        }
+        mykError = MYKONOS_setRfPllFrequency(mykDevice, SNIFFER_PLL, mykDevice->obsRx->snifferPllLoFrequency_Hz);
+        if (mykError != MYKONOS_ERR_OK) {
+                dev_err(&phy->spi->dev, "MYKONOS_setRfPllFrequency SNIFFER_PLL %s (%d)",
+                        getMykonosErrorMessage(mykError), mykError);
+        }
 
 	/*** < wait 200ms for PLLs to lock - user code here > ***/
 
@@ -731,12 +747,12 @@ static int ad9371_setup(struct ad9371_rf_phy *phy)
 	}
 	/*** < User: Mykonos is actively transmitting CGS from the RxFramer> ***/
 
-	mykError = MYKONOS_enableSysrefToObsRxFramer(mykDevice, 1);
-	if (mykError) {
-		dev_err(&phy->spi->dev, "%s (%d)",
-			getMykonosErrorMessage(mykError), mykError);
-		return -EFAULT;
-	}
+        mykError = MYKONOS_enableSysrefToObsRxFramer(mykDevice, 1);
+        if (mykError) {
+                dev_err(&phy->spi->dev, "%s (%d)",
+                        getMykonosErrorMessage(mykError), mykError);
+                return -EFAULT;
+        }
 	/*** < User: Mykonos is actively transmitting CGS from the ObsRxFramer> ***/
 
 	/***************************************************/
@@ -761,9 +777,9 @@ static int ad9371_setup(struct ad9371_rf_phy *phy)
 	if (ret < 0)
 		return ret;
 
-	ret = clk_prepare_enable(phy->jesd_rx_os_clk);
-	if (ret < 0)
-		return ret;
+        ret = clk_prepare_enable(phy->jesd_rx_os_clk);
+        if (ret < 0)
+                return ret;
 
 	ad9371_sysref_req(phy, SYSREF_CONT_OFF);
 
@@ -776,9 +792,9 @@ static int ad9371_setup(struct ad9371_rf_phy *phy)
 	if (framerStatus != 0x3E)
 		dev_warn(&phy->spi->dev, "framerStatus (0x%X)", framerStatus);
 
-	mykError = MYKONOS_readOrxFramerStatus(mykDevice, &obsFramerStatus);
-	if (obsFramerStatus != 0x3E)
-		dev_warn(&phy->spi->dev, "obsFramerStatus (0x%X)", obsFramerStatus);
+        mykError = MYKONOS_readOrxFramerStatus(mykDevice, &obsFramerStatus);
+        if (obsFramerStatus != 0x3E)
+                dev_warn(&phy->spi->dev, "obsFramerStatus (0x%X)", obsFramerStatus);
 
 	/**************************************/
 	/**** Check Mykonos Deframer Status ***/
@@ -817,10 +833,16 @@ static int ad9371_setup(struct ad9371_rf_phy *phy)
 	mykError = ad9371_set_radio_state(phy, RADIO_ON);
 
 	/* Allow TxQEC to run when user is not actively using ORx receive path */
-	mykError = MYKONOS_setObsRxPathSource(mykDevice, OBS_INTERNALCALS);
+        mykError = MYKONOS_setObsRxPathSource(mykDevice, OBS_INTERNALCALS);
 
 	MYKONOS_setupAuxAdcs(mykDevice, 4, 1);
 	MYKONOS_setupAuxDacs(mykDevice);
+        mykonosTempSensorConfig_t tempsensorconf;
+        tempsensorconf.tempDecimation = 4;
+        tempsensorconf.offset = 1;
+        tempsensorconf.overrideFusedOffset = 0;
+        tempsensorconf.tempWindow = 0x0F;
+        MYKONOS_setupTempSensor(mykDevice,&tempsensorconf);
 
 	clk_set_rate(phy->clks[RX_SAMPL_CLK],
 		     mykDevice->rx->rxProfile->iqRate_kHz * 1000);
@@ -871,6 +893,7 @@ static ssize_t ad9371_phy_store(struct device *dev,
 			else
 				phy->cal_mask &= ~val;
 		} else if (enable) {
+                    //dev_info(&phy->spi->dev, "luo:%s:case AD9371_INIT_CAL and enter ad9371_set_radio_state(phy, RADIO_FORCE_OFF);",__func__);
 			ad9371_set_radio_state(phy, RADIO_FORCE_OFF);
 
 			ret  = ad9371_init_cal(phy, phy->cal_mask);
@@ -1048,6 +1071,7 @@ static ssize_t ad9371_phy_lo_write(struct iio_dev *indio_dev,
 	mutex_lock(&indio_dev->mlock);
 	switch (private) {
 	case LOEXT_FREQ:
+            //dev_info(&phy->spi->dev, "luo:%s:case LOEXT_FREQ and enter ad9371_set_radio_state(phy, RADIO_FORCE_OFF);",__func__);
 		ad9371_set_radio_state(phy, RADIO_FORCE_OFF);
 		ret = MYKONOS_setRfPllFrequency(phy->mykDevice, chan->channel + 1, readin);
 		if (ret != MYKONOS_ERR_OK)
@@ -1264,7 +1288,7 @@ static ssize_t ad9371_phy_rx_write(struct iio_dev *indio_dev,
 			phy->tracking_cal_mask &= ~mask;
 
 		ad9371_orx_qec_verify_force_enable(phy);
-
+                //dev_info(&phy->spi->dev, "luo:%s:case RX_QEC and enter ad9371_set_radio_state(phy, RADIO_FORCE_OFF);",__func__);
 		ad9371_set_radio_state(phy, RADIO_FORCE_OFF);
 		ret = MYKONOS_enableTrackingCals(phy->mykDevice, phy->tracking_cal_mask);
 		ad9371_set_radio_state(phy, RADIO_RESTORE_STATE);
@@ -1632,7 +1656,7 @@ static ssize_t ad9371_phy_tx_write(struct iio_dev *indio_dev,
 			phy->tracking_cal_mask &= ~mask;
 
 		ad9371_orx_qec_verify_force_enable(phy);
-
+                //dev_info(&phy->spi->dev, "luo:%s:enter ad9371_set_radio_state(phy, RADIO_FORCE_OFF);",__func__);
 		ad9371_set_radio_state(phy, RADIO_FORCE_OFF);
 		ret = MYKONOS_enableTrackingCals(phy->mykDevice, phy->tracking_cal_mask);
 		ad9371_set_radio_state(phy, RADIO_RESTORE_STATE);
@@ -1948,7 +1972,7 @@ static int ad9371_phy_read_raw(struct iio_dev *indio_dev,
 {
 	struct ad9371_rf_phy *phy = iio_priv(indio_dev);
 	int ret;
-
+        mykonosTempSensorStatus_t tempsensorstatus;
 
 	mutex_lock(&indio_dev->mlock);
 	switch (m) {
@@ -2007,18 +2031,34 @@ static int ad9371_phy_read_raw(struct iio_dev *indio_dev,
 		ret = IIO_VAL_INT;
 		break;
 	case IIO_CHAN_INFO_RAW:
-		if (chan->output) {
-			*val = phy->mykDevice->auxIo->auxDacValue[chan->channel - CHAN_AUXDAC0];
-			ret = IIO_VAL_INT;
-		} else {
-			u16 adcCode;
-			MYKONOS_setAuxAdcChannel(phy->mykDevice, chan->channel - CHAN_AUXADC0);
-			ret = MYKONOS_readAuxAdc(phy->mykDevice, &adcCode);
-			if (ret == 0) {
-				*val = adcCode;
-				ret = IIO_VAL_INT;
-			}
-		}
+            switch (chan->type) {
+                case IIO_VOLTAGE:
+                    if (chan->output) {
+                            *val = phy->mykDevice->auxIo->auxDacValue[chan->channel - CHAN_AUXDAC0];
+                            ret = IIO_VAL_INT;
+                    } else {
+                            u16 adcCode;
+                            MYKONOS_setAuxAdcChannel(phy->mykDevice, chan->channel - CHAN_AUXADC0);
+                            ret = MYKONOS_readAuxAdc(phy->mykDevice, &adcCode);
+                            if (ret == 0) {
+                                    *val = adcCode;
+                                    ret = IIO_VAL_INT;
+                            }
+                    }
+                    break;
+                case IIO_TEMP:
+                    MYKONOS_setAuxAdcChannel(phy->mykDevice, MYK_TEMPSENSOR);
+                    MYKONOS_startTempMeasurement(phy->mykDevice);
+                    ret = MYKONOS_readTempSensor(phy->mykDevice,&tempsensorstatus);
+                    if(ret == 0) {
+                        *val = tempsensorstatus.tempCode * 1000;
+                        ret = IIO_VAL_INT;
+                    }
+                    break;
+            default:
+                ret = -EINVAL;
+                break;
+                }
 		break;
 	case IIO_CHAN_INFO_OFFSET:
 		if (chan->output) {
@@ -2282,7 +2322,12 @@ static const struct iio_chan_spec ad9371_phy_chan[] = {
 		.info_mask_separate = BIT(IIO_CHAN_INFO_RAW) |
 		BIT(IIO_CHAN_INFO_SCALE) | BIT(IIO_CHAN_INFO_OFFSET),
 
-	}
+        },{	/* AUXADC3 */
+            .type = IIO_TEMP,
+            .indexed = 1,
+            .channel = 0,
+            .info_mask_separate = BIT(IIO_CHAN_INFO_RAW),
+        }
 };
 
 static const struct iio_info ad9371_phy_info = {
@@ -3334,7 +3379,7 @@ ad9371_profile_bin_write(struct file *filp, struct kobject *kobj,
 		ad9371_set_radio_state(phy, RADIO_RESTORE_STATE);
 	} else {
 		clk_disable_unprepare(phy->jesd_rx_clk);
-		clk_disable_unprepare(phy->jesd_rx_os_clk);
+                clk_disable_unprepare(phy->jesd_rx_os_clk);
 		clk_disable_unprepare(phy->jesd_tx_clk);
 
 		ret = ad9371_setup(phy);
@@ -3665,7 +3710,6 @@ static int ad9371_probe(struct spi_device *spi)
 	u32 api_vers[4];
 
 	dev_info(&spi->dev, "%s : enter", __func__);
-
 	clk = devm_clk_get(&spi->dev, "jesd_rx_clk");
 	if (IS_ERR(clk))
 		return PTR_ERR(clk);
@@ -3687,7 +3731,11 @@ static int ad9371_probe(struct spi_device *spi)
 		return -EINVAL;
 
 	phy->reset_gpio = devm_gpiod_get(&spi->dev, "reset", GPIOD_OUT_LOW);
-	ad9371_reset(phy);
+        ret = ad9371_reset(phy);
+        if (ret) {
+                dev_err(&phy->spi->dev, "RESET Failed");
+                return ret;
+        }
 
 	phy->sysref_req_gpio = devm_gpiod_get(&spi->dev, "sysref_req",
 					      GPIOD_OUT_HIGH);
@@ -3706,9 +3754,9 @@ static int ad9371_probe(struct spi_device *spi)
 	if (IS_ERR(phy->jesd_tx_clk))
 		return PTR_ERR(phy->jesd_tx_clk);
 
-	phy->jesd_rx_os_clk = devm_clk_get(&spi->dev, "jesd_rx_os_clk");
-	if (IS_ERR(phy->jesd_rx_os_clk))
-		return PTR_ERR(phy->jesd_rx_os_clk);
+        phy->jesd_rx_os_clk = devm_clk_get(&spi->dev, "jesd_rx_os_clk");
+        if (IS_ERR(phy->jesd_rx_os_clk))
+                return PTR_ERR(phy->jesd_rx_os_clk);
 
 	phy->dev_clk = devm_clk_get(&spi->dev, "dev_clk");
 	if (IS_ERR(phy->dev_clk))
@@ -3811,7 +3859,7 @@ static int ad9371_probe(struct spi_device *spi)
 	if (ret < 0)
 		dev_warn(&spi->dev, "%s: failed to register debugfs", __func__);
 
-	MYKONOS_getArmVersion(phy->mykDevice, &vers[0], &vers[1], &vers[2], &buildType);
+        MYKONOS_getArmVersion(phy->mykDevice, &vers[0], &vers[1], &vers[2], &buildType);
 	MYKONOS_getApiVersion(phy->mykDevice, &api_vers[0], &api_vers[1], &api_vers[2], &api_vers[3]);
 	MYKONOS_getDeviceRev(phy->mykDevice, &rev);
 

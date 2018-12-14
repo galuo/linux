@@ -18,7 +18,7 @@
 
 #include "common.h"
 
-ADI_LOGLEVEL CMB_LOGLEVEL = ADIHAL_LOG_ERROR | ADIHAL_LOG_WARNING /*| ADIHAL_LOG_MESSAGE*/;
+ADI_LOGLEVEL CMB_LOGLEVEL = ADIHAL_LOG_ERROR | ADIHAL_LOG_WARNING  /*| ADIHAL_LOG_SPI   | ADIHAL_LOG_MESSAGE*/;
 
 commonErr_t CMB_closeHardware(void)
 {
@@ -87,10 +87,10 @@ commonErr_t CMB_SPIWriteBytes(spiSettings_t *spiSettings, uint16_t *addr,
 		txbuf[txBufIndex++] = (addr[i] & 0xFF);
 		txbuf[txBufIndex++] = data[i];
 
-		if(CMB_LOGLEVEL & ADIHAL_LOG_SPI) {
-			dev_info(&spi->dev, "SPIWrite: ADDR:0x%03X, DATA:0x%02X \n",
-				 addr[i], data[i]);
-		}
+//		if(CMB_LOGLEVEL & ADIHAL_LOG_SPI) {
+//                        dev_info(&spi->dev, "SPIWrite: ADDR:0x%03X, DATA:0x%02X \n",
+//                                 addr[i], data[i]);
+//		}
 
 		/* Send full buffer when possible */
 		if (txBufIndex >= spiArrayTripSize) {
@@ -196,7 +196,7 @@ commonErr_t CMB_writeToLog(ADI_LOGLEVEL level, uint8_t deviceIndex,
 	} else if((CMB_LOGLEVEL & ADIHAL_LOG_MESSAGE) && (level == ADIHAL_LOG_MESSAGE)) {
 		pr_info("MESSAGE: %d: %s",(int)errorCode, comment);
 	} else {
-		pr_err("Undefined Log Level: 0x%X", level);
+                //pr_err("Undefined Log Level: 0x%X", level);
 	}
 
 	return(COMMONERR_OK);

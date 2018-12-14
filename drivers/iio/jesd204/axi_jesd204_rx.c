@@ -413,7 +413,10 @@ static void axi_jesd204_rx_watchdog(struct work_struct *work)
 
 	link_disabled = readl_relaxed(jesd->base + JESD204_RX_REG_LINK_STATE);
 	if (link_disabled)
+        {
+            dev_info(jesd->dev, "luo:%s  readl_relaxed(jesd->base + JESD204_RX_REG_LINK_STATE) = %d",__func__,link_disabled);
 		return;
+        }
 
 	link_status = readl_relaxed(jesd->base + JESD204_RX_REG_LINK_STATUS);
 	if (link_status == 3) {
@@ -422,7 +425,7 @@ static void axi_jesd204_rx_watchdog(struct work_struct *work)
 			lane_status &= 0x3;
 			if (lane_status == 0x0) {
 				dev_err(jesd->dev, "Lane %d desynced, restarting link\n", i);
-				restart = true;
+                                restart = true;
 			}
 		}
 
@@ -432,7 +435,7 @@ static void axi_jesd204_rx_watchdog(struct work_struct *work)
 			writel_relaxed(0x0, jesd->base + JESD204_RX_REG_LINK_DISABLE);
 		}
 	}
-
+        //dev_info(jesd->dev, "luo:%s link_disabled = %d , link_status = %d , lane_status = 0x%X ",__func__,link_disabled,link_status,lane_status);
 	schedule_delayed_work(&jesd->watchdog_work, HZ);
 }
 

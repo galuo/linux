@@ -1240,7 +1240,7 @@ static int cf_axi_dds_probe(struct platform_device *pdev)
 	const struct of_device_id *id;
 	struct cf_axi_dds_state *st;
 	struct iio_dev *indio_dev;
-	struct resource *res;
+        struct resource *res;
 	unsigned int ctrl_2;
 	unsigned int rate;
 	unsigned int drp_status;
@@ -1491,7 +1491,7 @@ static int cf_axi_dds_probe(struct platform_device *pdev)
 	return 0;
 
 err_unconfigure_buffer:
-	cf_axi_dds_unconfigure_buffer(indio_dev);
+        cf_axi_dds_unconfigure_buffer(indio_dev);
 err_converter_put:
 	if (st->dev_spi)
 		dds_converter_put(st->dev_spi);

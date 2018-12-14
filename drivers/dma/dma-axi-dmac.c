@@ -350,7 +350,10 @@ static irqreturn_t axi_dmac_interrupt_handler(int irq, void *devid)
 
 	pending = axi_dmac_read(dmac, AXI_DMAC_REG_IRQ_PENDING);
 	if (!pending)
+        {
+            printk("%s: return IRQ_NONE;",__func__);
 		return IRQ_NONE;
+        }
 
 	axi_dmac_write(dmac, AXI_DMAC_REG_IRQ_PENDING, pending);
 

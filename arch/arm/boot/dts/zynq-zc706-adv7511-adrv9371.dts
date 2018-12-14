@@ -1,3 +1,4 @@
+
 /dts-v1/;
 
 /include/ "zynq-zc706.dtsi"
@@ -195,7 +196,7 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 		compatible = "adi,axi-adxcvr-1.0";
-		reg = <0x44a50000 0x1000>;
+		reg = <0x44a70000 0x1000>;
 
 		clocks = <&clk0_ad9528 1>, <&axi_rx_os_clkgen>;
 		clock-names = "conv", "div40";
@@ -223,6 +224,10 @@
 
 		adi,sys-clk-select = <3>;
 		adi,out-clk-select = <3>;
+	};
+	P9032ddc_0_device: P9032ddc_0_device@50000000 {
+		compatible = "adi,axi-p9032ddc-1.00.a";
+		reg = <0x50000000 0x1000000>;
 	};
 };
 
