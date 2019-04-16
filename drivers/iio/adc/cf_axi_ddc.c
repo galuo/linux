@@ -38,7 +38,35 @@
 #define COMMON_OFFSET                   0x180000
 #define RF_CONTROL_OFFSET            0x130000
 #define FX3_CONTROL_OFFSET          0x140000
+#define TXDDR_OFFSET                         0x110000
 #define CF_AXI_SPAN		                 (COMMON_OFFSET + 0x400)		   //span control offset address
+//插值编号	半带滤波器插值倍数	CIC滤波器插值倍数	总插值倍数
+//        0                        1	                                      1	                1
+//        1                        2	                                      1	                2
+//        2                        1	                                      3	                3
+//        3                        4	                                      1	                4
+//        4                        1	                                      5	                5
+//        5                        2	                                      3	                6
+//        6                        8	                                      1	                8
+//        7                        2	                                      5	                10
+//        8                        4	                                      3	                12
+//        9                        1	                                      15                	15
+//        10	              4	                                      4	                16
+//        11	              4	                                      5	                20
+//        12	              4	                                      6	                24
+//        13	              2	                                      15	                30
+//        14	              32                                           1	                32
+//        15	              8	                                      5	                40
+//        16	              8	                                      6	                48
+//        17	              4	                                      15	                60
+//        18	              32                                           2	                64
+//        19	              16                                           5	                80
+//        20	              16                                           6	                96
+//        21	              8	                                      15	                120
+//        22	              32                                           4	                128
+//        23	              32                                           8	                256
+//        24	              32                                           16	                512
+#define DUC_INTERPOLATION            (COMMON_OFFSET + 0x408)                  //插值编号
 #define HALFBAND_OFFSET                 (DDC_OFFSET + 0x0)
 #define POLY_OFFSET                             (DDC_OFFSET + 0x400)
 /*External temperature*/
@@ -221,12 +249,24 @@ struct cf_axi_ddc_state {
         struct iio_info		iio_info;
         void __iomem		*regs;
         struct iio_dev 		*indio_dev;
+        //ddc profile
         struct bin_attribute 	bin;
         char			  *bin_attr_buf;
         int                             *coef_poly;
         int                             *coef_hb;
         int                             coef_poly_num;
         int                             coef_hb_num;
+        //tx ddr profile
+        struct bin_attribute 	txddrbin;
+        char			  *txddrbin_buf;
+        unsigned int           startflag;
+        unsigned int           enable_ddr_start_address;//default 0
+        unsigned int           enable_ddr_end_address;//
+        unsigned int           enable_ddr_flag;//0 disable , 1 enable
+        unsigned int           enable_ddr_mode;//2--cycle,
+        unsigned int           datalen;
+        unsigned int           sequence;
+        unsigned int           endflag;
 };
 
 static int cf_axi_ddc_read_raw(struct iio_dev *indio_dev,
@@ -272,6 +312,7 @@ static int cf_axi_ddc_write_raw(struct iio_dev *indio_dev,
 {
     struct cf_axi_ddc_state *st = iio_priv(indio_dev);
     int ret = 0;
+    int tmp = 0;
 
     mutex_lock(&indio_dev->mlock);
     switch (mask) {
@@ -280,7 +321,19 @@ static int cf_axi_ddc_write_raw(struct iio_dev *indio_dev,
             case IIO_TEMP:
                 break;
             case IIO_VOLTAGE:
+                if(chan->address == DUC_INTERPOLATION)
+                {
+                    tmp = ioread32(st->regs + TXDDR_OFFSET) ;
+                    if(tmp)
+                    {
+                        iowrite32(0, st->regs + TXDDR_OFFSET);
+                    }
+                }
                 iowrite32(val, st->regs + chan->address);
+                if(tmp)
+                {
+                    iowrite32(st->enable_ddr_mode, st->regs + TXDDR_OFFSET);
+                }
                 break;
             default:
                 ret = -EINVAL;
@@ -450,6 +503,130 @@ ddc_profile_bin_read(struct file *filp, struct kobject *kobj,
     return sprintf(buf, "TBD");
 }
 
+static ssize_t
+txddr_profile_bin_write(struct file *filp, struct kobject *kobj,
+                       struct bin_attribute *bin_attr,
+                       char *buf, loff_t off, size_t count)
+{
+    struct iio_dev *indio_dev = dev_to_iio_dev(kobj_to_dev(kobj));
+    struct cf_axi_ddc_state *st = iio_priv(indio_dev);
+    int ret = 0,i;
+    int *data = NULL;
+    unsigned int endflag = 0;
+    unsigned int startflag = 0;
+
+    if (off == 0) {
+            if (st->txddrbin_buf == NULL) {
+                    st->txddrbin_buf = devm_kzalloc(&indio_dev->dev,
+                                            bin_attr->size, GFP_KERNEL);
+                    if (!st->txddrbin_buf)
+                    {
+                            dev_err(&indio_dev->dev, "%s:st->bin_attr_buf devm_kzalloc error", __func__);
+                            return -ENOMEM;
+                    }
+            } else {
+                    memset(st->txddrbin_buf, 0, bin_attr->size);
+            }
+    }
+    memcpy(st->txddrbin_buf + off, buf, count);
+
+    memcpy(&startflag, st->txddrbin_buf, sizeof(unsigned int));
+    if(startflag != st->startflag)
+    {
+            dev_err(&indio_dev->dev, "%s:st->startflag error", __func__);
+            return count;
+    }
+    memcpy(&st->enable_ddr_flag,st->txddrbin_buf+sizeof(unsigned int), sizeof(unsigned int));
+    memcpy(&st->enable_ddr_mode,st->txddrbin_buf+sizeof(unsigned int)*2, sizeof(unsigned int));
+    memcpy(&st->enable_ddr_start_address,st->txddrbin_buf+sizeof(unsigned int)*3, sizeof(unsigned int));
+    memcpy(&st->enable_ddr_end_address,st->txddrbin_buf+sizeof(unsigned int)*4, sizeof(unsigned int));
+    memcpy(&st->datalen, st->txddrbin_buf+sizeof(unsigned int)*5, sizeof(unsigned int));
+    if(st->datalen % 4 != 0)
+    {
+            dev_err(&indio_dev->dev, "%s:st->datalen mod 4 != 0", __func__);
+            return count;
+    }
+    if(st->datalen > bin_attr->size - sizeof(unsigned int)*4)
+    {
+            dev_err(&indio_dev->dev, "%s:st->datalen = %d , error", __func__,st->datalen);
+            return count;
+    }
+
+    memcpy(&endflag, st->txddrbin_buf +sizeof(unsigned int) * 7 +  st->datalen, sizeof(unsigned int));
+    if(endflag != st->endflag)
+    {
+            //dev_err(&indio_dev->dev, "%s:st->endflag = 0x%08X , error", __func__,endflag);
+            return count;
+    }
+    iowrite32(0,st->regs + TXDDR_OFFSET + 0x00);
+    //dev_info(&indio_dev->dev, "%s:st->endflag = 0x%08X , success", __func__,endflag);
+    if(st->datalen ==0)
+    {
+        goto enable_txddr;
+    }
+    memcpy(&st->sequence, st->txddrbin_buf+sizeof(unsigned int)*6, sizeof(unsigned int));
+    if(st->sequence <= 0)
+    {
+            dev_err(&indio_dev->dev, "%s:st->sequence == %d, st->sequence must >=1.", __func__,st->sequence);
+            return count;
+    }
+    data  = (int *)(st->txddrbin_buf + sizeof(unsigned int) * 7);
+
+    for(i = 0; i < st->datalen/sizeof(int)/4; i++)
+    {
+        iowrite32(data[i*4],st->regs + TXDDR_OFFSET + 0x10);
+        iowrite32(data[i*4 + 1],st->regs + TXDDR_OFFSET + 0x0c);
+        iowrite32(data[i*4 + 2],st->regs + TXDDR_OFFSET + 0x08);
+        iowrite32(data[i*4 + 3],st->regs + TXDDR_OFFSET + 0x04);
+        iowrite32(i,st->regs + TXDDR_OFFSET + 0x14);
+        iowrite32(1,st->regs + TXDDR_OFFSET + 0x18);
+        iowrite32(0,st->regs + TXDDR_OFFSET + 0x18);
+    }
+    iowrite32(0x20000 * st->sequence,st->regs + TXDDR_OFFSET + 0x1c);
+    iowrite32(1,st->regs + TXDDR_OFFSET + 0x20);
+    iowrite32(0,st->regs + TXDDR_OFFSET + 0x20);
+    i = 10;
+    while(1)
+    {
+        if(ioread32(st->regs +TXDDR_OFFSET + 0x2c ))
+            break;
+        msleep(1);
+        i--;
+        if(i ==0)
+        {
+            dev_err(&indio_dev->dev, "%s:ioread32(st->regs +TXDDR_OFFSET + 0x2c ) error", __func__);
+            return count;
+        }
+    }
+enable_txddr:
+    if(st->enable_ddr_flag)
+    {
+            iowrite32(st->enable_ddr_start_address,st->regs + TXDDR_OFFSET + 0x30);
+            if(0 == st->enable_ddr_end_address)
+            {
+                iowrite32(0x20000 * (st->sequence - 1) + st->datalen/2,st->regs + TXDDR_OFFSET + 0x28);
+            }else{
+                iowrite32(st->enable_ddr_end_address,st->regs + TXDDR_OFFSET + 0x28);
+            }
+            iowrite32(st->enable_ddr_mode,st->regs + TXDDR_OFFSET + 0x00);
+            iowrite32(1,st->regs + TXDDR_OFFSET + 0x24);
+            iowrite32(0,st->regs + TXDDR_OFFSET + 0x24);
+    }
+
+    return (ret < 0) ? ret : count;
+}
+
+static ssize_t
+txddr_profile_bin_read(struct file *filp, struct kobject *kobj,
+                       struct bin_attribute *bin_attr,
+                       char *buf, loff_t off, size_t count)
+{
+    if (off)
+            return 0;
+
+    return sprintf(buf, "TBD");
+}
+
 static ssize_t cf_axi_span_write(struct iio_dev *indio_dev,
                                    uintptr_t private,
                                    const struct iio_chan_spec *chan,
@@ -458,7 +635,7 @@ static ssize_t cf_axi_span_write(struct iio_dev *indio_dev,
     struct cf_axi_ddc_state *st = iio_priv(indio_dev);
     int ret = 0;
     u64 readin;
-    dev_dbg(&indio_dev->dev,"enter cf_axi_span_write.\n");
+    //dev_dbg(&indio_dev->dev,"enter cf_axi_span_write.\n");
     ret = kstrtoull(buf, 10, &readin);
     if (ret)
             return ret;
@@ -505,7 +682,7 @@ static ssize_t cf_axi_span_read(struct iio_dev *indio_dev,
     int ret = 0;
     u64 val = 0;
     unsigned int temp;
-    dev_dbg(&indio_dev->dev,"enter cf_axi_span_read.\n");
+    //dev_dbg(&indio_dev->dev,"enter cf_axi_span_read.\n");
     mutex_lock(&indio_dev->mlock);
     switch (private) {
     case 0:
@@ -706,6 +883,13 @@ static const struct iio_chan_spec cf_axi_ddc_channels[] = {
             .address = POW_DB ,
             .extend_name = "POW_DB",
             .info_mask_separate = BIT(IIO_CHAN_INFO_RAW) ,
+        },{
+            .type = IIO_VOLTAGE,
+            .indexed = 1,
+            .channel = 17,
+            .address = DUC_INTERPOLATION ,
+            .extend_name = "duc_interpolation",
+            .info_mask_separate = BIT(IIO_CHAN_INFO_RAW) ,
         }
 };
 
@@ -774,6 +958,12 @@ static int cf_axi_ddc_probe(struct platform_device *pdev)
         version = ioread32(st->regs + HDL_USER_VERSION);
         dev_info(&pdev->dev,"HDL USER datetime %x/%x/%x.version(%x)",year,month,date,version);
 
+        iowrite32(0, st->regs + RX1_ATT);
+        iowrite32(0, st->regs + RX2_ATT);
+        iowrite32(0, st->regs + TX1_ATT);
+        iowrite32(0, st->regs + TX2_ATT);
+        iowrite32(0, st->regs + CONFIG_LNA);
+
         for(i = 0; i < sizeof(COEF_HB)/sizeof(COEF_HB[0]) ; i++)
         {
             iowrite32(COEF_HB[i],st->regs + HALFBAND_OFFSET + i*4);
@@ -803,12 +993,28 @@ static int cf_axi_ddc_probe(struct platform_device *pdev)
         st->coef_poly = NULL;
         st->coef_hb = NULL;
 
+        sysfs_bin_attr_init(&st->txddrbin);
+        st->txddrbin.attr.name = "txddr_profile";
+        st->txddrbin.attr.mode = S_IWUSR | S_IRUGO;
+        st->txddrbin.write = txddr_profile_bin_write;
+        st->txddrbin.read = txddr_profile_bin_read;
+        st->txddrbin.size = 0x40100;//0x40010 actual
+
+        st->txddrbin_buf = NULL;
+        st->startflag = 0xDDDDDDDD;
+        st->datalen = 0;
+        st->sequence = 0;
+        st->endflag = 0xEEEEEEEE;
+
         dev_dbg(&pdev->dev,"enter iio_device_register.\n");
         ret = iio_device_register(indio_dev);
         if (ret)
                 goto err_unconfigure_buffer;
 
         ret = sysfs_create_bin_file(&indio_dev->dev.kobj, &st->bin);
+        if (ret < 0)
+                goto out_iio_device_unregister;
+        ret = sysfs_create_bin_file(&indio_dev->dev.kobj, &st->txddrbin);
         if (ret < 0)
                 goto out_iio_device_unregister;
 

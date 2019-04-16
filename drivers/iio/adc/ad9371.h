@@ -197,6 +197,10 @@ struct ad9371_rf_phy {
 
 	struct gpio_desc	*reset_gpio;
 	struct gpio_desc	*sysref_req_gpio;
+        struct gpio_desc        *rx2_enable_gpio;
+        struct gpio_desc        *rx1_enable_gpio;
+        struct gpio_desc        *tx2_enable_gpio;
+        struct gpio_desc        *tx1_enable_gpio;
 	struct gain_table_info  gt_info[LOOPBACK_GT + 1];
 
 	ktime_t			time_prev_dpd[2];

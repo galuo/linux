@@ -1268,7 +1268,6 @@ static int cf_axi_dds_probe(struct platform_device *pdev)
 		ret = -ENOMEM;
 		goto err_iio_device_free;
 	}
-
 	if (info->standalone) {
 		st->clk = devm_clk_get(&pdev->dev, "sampl_clk");
 		if (IS_ERR(st->clk)) {

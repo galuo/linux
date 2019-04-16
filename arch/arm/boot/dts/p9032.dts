@@ -410,7 +410,7 @@
 			adi,divider-phase = <0>;
 			adi,channel-divider = <10>;
 			adi,signal-source = <SOURCE_VCO>;
-		};
+		};*/
 
 		ad9528_0_c6: channel@6 {
 			reg = <6>;
@@ -419,7 +419,7 @@
 			adi,divider-phase = <0>;
 			adi,channel-divider = <5>;
 			adi,signal-source = <SOURCE_VCO>;
-		};*/
+		};
 
 		ad9528_0_c0: channel@0 {
 			reg = <0>;

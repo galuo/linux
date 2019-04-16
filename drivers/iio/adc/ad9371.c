@@ -107,6 +107,10 @@ enum ad9371_iio_dev_attr {
 	AD9371_ENSM_MODE,
 	AD9371_ENSM_MODE_AVAIL,
 	AD9371_INIT_CAL,
+        AD9371_RX1_ENABLE,
+        AD9371_RX2_ENABLE,
+        AD9371_TX1_ENABLE,
+        AD9371_TX2_ENABLE,
 };
 
 int ad9371_spi_read(struct spi_device *spi, unsigned reg)
@@ -540,7 +544,9 @@ static int ad9371_setup(struct ad9371_rf_phy *phy)
 	/*******************************/
 	/**** Mykonos Initialization ***/
 	/*******************************/
-
+        mykDevice->auxIo->armGpio->txRxPinMode = 1;
+        mykDevice->auxIo->armGpio->useRx2EnablePin = 1;
+        mykDevice->auxIo->armGpio->useTx2EnablePin = 1;
 	dev_clk = clk_round_rate(phy->dev_clk, mykDevice->clocks->deviceClock_kHz * 1000);
 	fmc_clk = clk_round_rate(phy->fmc_clk, mykDevice->clocks->deviceClock_kHz * 1000);
 
@@ -906,6 +912,30 @@ static ssize_t ad9371_phy_store(struct device *dev,
 			ad9371_set_radio_state(phy, RADIO_RESTORE_STATE);
 		}
 		break;
+        case AD9371_RX1_ENABLE:
+            ret = strtobool(buf, &enable);
+            if (ret)
+                    break;
+            ret = gpiod_direction_output(phy->rx1_enable_gpio, enable);
+            break;
+        case AD9371_RX2_ENABLE:
+            ret = strtobool(buf, &enable);
+            if (ret)
+                    break;
+            ret = gpiod_direction_output(phy->rx2_enable_gpio, enable);
+            break;
+        case AD9371_TX1_ENABLE:
+            ret = strtobool(buf, &enable);
+            if (ret)
+                    break;
+            ret = gpiod_direction_output(phy->tx1_enable_gpio, enable);
+            break;
+        case AD9371_TX2_ENABLE:
+            ret = strtobool(buf, &enable);
+            if (ret)
+                    break;
+            ret = gpiod_direction_output(phy->tx2_enable_gpio, enable);
+            break;
 	default:
 		ret = -EINVAL;
 	}
@@ -939,6 +969,18 @@ static ssize_t ad9371_phy_show(struct device *dev,
 		if (val)
 			ret = sprintf(buf, "%d\n", !!(phy->cal_mask & val));
 		break;
+        case AD9371_RX1_ENABLE:
+            ret = sprintf(buf, "%d\n", gpiod_get_value(phy->rx1_enable_gpio));
+            break;
+        case AD9371_RX2_ENABLE:
+            ret = sprintf(buf, "%d\n", gpiod_get_value(phy->rx2_enable_gpio));
+            break;
+        case AD9371_TX1_ENABLE:
+            ret = sprintf(buf, "%d\n", gpiod_get_value(phy->tx1_enable_gpio));
+            break;
+        case AD9371_TX2_ENABLE:
+            ret = sprintf(buf, "%d\n", gpiod_get_value(phy->tx2_enable_gpio));
+            break;
 	default:
 		ret = -EINVAL;
 	}
@@ -951,6 +993,26 @@ static IIO_DEVICE_ATTR(ensm_mode, S_IRUGO | S_IWUSR,
 		       ad9371_phy_show,
 		       ad9371_phy_store,
 		       AD9371_ENSM_MODE);
+
+static IIO_DEVICE_ATTR(rx1_enable, S_IRUGO | S_IWUSR,
+                       ad9371_phy_show,
+                       ad9371_phy_store,
+                       AD9371_RX1_ENABLE);
+
+static IIO_DEVICE_ATTR(rx2_enable, S_IRUGO | S_IWUSR,
+                       ad9371_phy_show,
+                       ad9371_phy_store,
+                       AD9371_RX2_ENABLE);
+
+static IIO_DEVICE_ATTR(tx1_enable, S_IRUGO | S_IWUSR,
+                       ad9371_phy_show,
+                       ad9371_phy_store,
+                       AD9371_TX1_ENABLE);
+
+static IIO_DEVICE_ATTR(tx2_enable, S_IRUGO | S_IWUSR,
+                       ad9371_phy_show,
+                       ad9371_phy_store,
+                       AD9371_TX2_ENABLE);
 
 static IIO_DEVICE_ATTR(ensm_mode_available, S_IRUGO,
 		       ad9371_phy_show,
@@ -1000,6 +1062,10 @@ static IIO_DEVICE_ATTR(calibrate_tx_lol_ext_en, S_IRUGO | S_IWUSR,
 
 static struct attribute *ad9371_phy_attributes[] = {
 	&iio_dev_attr_ensm_mode.dev_attr.attr,
+        &iio_dev_attr_rx1_enable.dev_attr.attr,
+        &iio_dev_attr_rx2_enable.dev_attr.attr,
+        &iio_dev_attr_tx1_enable.dev_attr.attr,
+        &iio_dev_attr_tx2_enable.dev_attr.attr,
 	&iio_dev_attr_ensm_mode_available.dev_attr.attr,
 	&iio_dev_attr_calibrate.dev_attr.attr,
 	&iio_dev_attr_calibrate_rx_qec_en.dev_attr.attr,
@@ -3739,6 +3805,15 @@ static int ad9371_probe(struct spi_device *spi)
 
 	phy->sysref_req_gpio = devm_gpiod_get(&spi->dev, "sysref_req",
 					      GPIOD_OUT_HIGH);
+        phy->rx2_enable_gpio = devm_gpiod_get(&spi->dev, "rx2_enable",
+                                              GPIOD_OUT_HIGH);
+        phy->rx1_enable_gpio = devm_gpiod_get(&spi->dev, "rx1_enable",
+                                              GPIOD_OUT_HIGH);
+        phy->tx2_enable_gpio = devm_gpiod_get(&spi->dev, "tx2_enable",
+                                              GPIOD_OUT_HIGH);
+        phy->tx1_enable_gpio = devm_gpiod_get(&spi->dev, "tx1_enable",
+                                              GPIOD_OUT_HIGH);
+
 
 	phy->jesd_rx_clk = clk;
 
