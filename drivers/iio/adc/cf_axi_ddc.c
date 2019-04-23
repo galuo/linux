@@ -330,9 +330,14 @@ static int cf_axi_ddc_write_raw(struct iio_dev *indio_dev,
                     }
                 }
                 iowrite32(val, st->regs + chan->address);
-                if(tmp)
+                if(chan->address == DUC_INTERPOLATION)
                 {
-                    iowrite32(st->enable_ddr_mode, st->regs + TXDDR_OFFSET);
+                    iowrite32(1, st->regs + COMMON_OFFSET + 0x40c);
+                    iowrite32(0, st->regs + COMMON_OFFSET + 0x40c);
+                    if(tmp)
+                    {
+                        iowrite32(st->enable_ddr_mode, st->regs + TXDDR_OFFSET);
+                    }
                 }
                 break;
             default:
@@ -571,6 +576,20 @@ txddr_profile_bin_write(struct file *filp, struct kobject *kobj,
             return count;
     }
     data  = (int *)(st->txddrbin_buf + sizeof(unsigned int) * 7);
+
+    i = 10;
+    while(1)
+    {
+        if(ioread32(st->regs +TXDDR_OFFSET + 0x5c ))
+            break;
+        msleep(1);
+        i--;
+        if(i ==0)
+        {
+            dev_err(&indio_dev->dev, "%s:ioread32(st->regs +TXDDR_OFFSET + 0x5c ) error", __func__);
+            return count;
+        }
+    }
 
     for(i = 0; i < st->datalen/sizeof(int)/4; i++)
     {
@@ -958,11 +977,11 @@ static int cf_axi_ddc_probe(struct platform_device *pdev)
         version = ioread32(st->regs + HDL_USER_VERSION);
         dev_info(&pdev->dev,"HDL USER datetime %x/%x/%x.version(%x)",year,month,date,version);
 
-        iowrite32(0, st->regs + RX1_ATT);
-        iowrite32(0, st->regs + RX2_ATT);
-        iowrite32(0, st->regs + TX1_ATT);
-        iowrite32(0, st->regs + TX2_ATT);
-        iowrite32(0, st->regs + CONFIG_LNA);
+        iowrite32(127, st->regs + RX1_ATT);
+        iowrite32(127, st->regs + RX2_ATT);
+        iowrite32(127, st->regs + TX1_ATT);
+        iowrite32(127, st->regs + TX2_ATT);
+        iowrite32(127, st->regs + CONFIG_LNA);
 
         for(i = 0; i < sizeof(COEF_HB)/sizeof(COEF_HB[0]) ; i++)
         {
