@@ -26,7 +26,8 @@
 		 *    862.500 MHz - 1006.250 MHz
 		 *    690.000 MHz -  805.000 MHz
 		 */
-		adi,pll2-m1-frequency = <1233333333>;
+		//adi,pll2-m1-frequency = <1233333333>;
+		adi,pll2-m1-frequency = <1000000000>;//2019.5.15 luoxiaofeng
 
 		/* Manual divider configuration /
 //		adi,pll2-ndiv-a-cnt = <2>; /* a = N % 4 */
