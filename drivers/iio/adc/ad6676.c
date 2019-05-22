@@ -69,7 +69,6 @@ struct ad6676_platform_data {
 	struct ad6676_jesd_conf jesd;
 	struct ad6676_agc_conf agc;
 	struct ad6676_shuffler_conf shuffler;
-	bool spi3wire;
 };
 
 struct ad6676_phy {
@@ -510,7 +509,7 @@ static int ad6676_setup(struct axiadc_converter *conv)
 		phy->ref_clk = clk_get_rate(clk);
 	}
 
-	ret = ad6676_reset(conv, (spi->mode & SPI_3WIRE) || pdata->spi3wire);
+	ret = ad6676_reset(conv, (spi->mode & SPI_3WIRE));
 	if (ret < 0)
 		return ret;
 
@@ -1009,6 +1008,7 @@ static int ad6676_gpio_config(struct axiadc_converter *conv)
 	struct spi_device *spi = conv->spi;
 	struct gpio_board_cfg board_cfg[5];
 	enum gpiod_flags flags;
+	struct gpio_desc *temp;
 	int i;
 
 	board_cfg[0].gpio_name = "oen";
@@ -1054,7 +1054,7 @@ static int ad6676_gpio_config(struct axiadc_converter *conv)
 		else
 			flags = GPIOD_OUT_LOW;
 
-		devm_gpiod_get(&spi->dev, board_cfg[i].gpio_name, flags);
+		temp = devm_gpiod_get(&spi->dev, board_cfg[i].gpio_name, flags);
 	}
 
 	return 0;
@@ -1077,8 +1077,6 @@ static struct ad6676_platform_data *ad6676_parse_dt(struct device *dev)
 	pdata = devm_kzalloc(dev, sizeof(*pdata), GFP_KERNEL);
 	if (!pdata)
 		return NULL;
-
-	pdata->spi3wire = of_property_read_bool(np, "adi,spi-3wire-enable");
 
 	pdata->base.f_adc_hz = ad6676_of_property_read_u32(np, "adi,adc-frequency-hz", 320000000UL);
 	pdata->base.fadc_fixed = of_property_read_bool(np, "adi,adc-frequency-fixed-enable");

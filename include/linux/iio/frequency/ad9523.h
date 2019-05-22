@@ -10,29 +10,29 @@
 #define IIO_FREQUENCY_AD9523_H_
 
 enum outp_drv_mode {
-	TRISTATE,	/* 0 */
-	LVPECL_8mA,	/* 1 */
-	LVDS_4mA,	/* 2 */
-	LVDS_7mA,	/* 3 */
-	HSTL0_16mA,	/* 4 */
-	HSTL1_8mA,	/* 5 */
-	CMOS_CONF1,	/* 6 */
-	CMOS_CONF2,	/* 7 */
-	CMOS_CONF3,	/* 8 */
-	CMOS_CONF4,	/* 9 */
-	CMOS_CONF5,	/* 10 */
-	CMOS_CONF6,	/* 11 */
-	CMOS_CONF7,	/* 12 */
-	CMOS_CONF8,	/* 13 */
-	CMOS_CONF9	/* 14 */
+	TRISTATE,
+	LVPECL_8mA,
+	LVDS_4mA,
+	LVDS_7mA,
+	HSTL0_16mA,
+	HSTL1_8mA,
+	CMOS_CONF1,
+	CMOS_CONF2,
+	CMOS_CONF3,
+	CMOS_CONF4,
+	CMOS_CONF5,
+	CMOS_CONF6,
+	CMOS_CONF7,
+	CMOS_CONF8,
+	CMOS_CONF9
 };
 
 enum ref_sel_mode {
-	NONEREVERTIVE_STAY_ON_REFB,	/* 0 */
-	REVERT_TO_REFA,	/* 1 */
-	SELECT_REFA,	/* 2 */
-	SELECT_REFB,	/* 3 */
-	EXT_REF_SEL	/* 4 */
+	NONEREVERTIVE_STAY_ON_REFB,
+	REVERT_TO_REFA,
+	SELECT_REFA,
+	SELECT_REFB,
+	EXT_REF_SEL
 };
 
 /**
@@ -107,7 +107,6 @@ enum cpole1_capacitor {
  * struct ad9523_platform_data - platform specific information
  *
  * @vcxo_freq: External VCXO frequency in Hz
- * @spi3wire: SPI 3-Wire mode enable;
  * @refa_diff_rcv_en: REFA differential/single-ended input selection.
  * @refb_diff_rcv_en: REFB differential/single-ended input selection.
  * @zd_in_diff_en: Zero Delay differential/single-ended input selection.
@@ -144,7 +143,6 @@ enum cpole1_capacitor {
 
 struct ad9523_platform_data {
 	unsigned long 			vcxo_freq;
-	bool				spi3wire;
 
 	/* Differential/ Single-Ended Input Configuration */
 	bool				refa_diff_rcv_en;

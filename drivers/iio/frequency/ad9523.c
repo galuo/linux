@@ -288,17 +288,24 @@ struct ad9523_state {
 	struct ad9523_platform_data	*pdata;
 	struct ad9523_outputs		output[AD9523_NUM_CHAN];
 	struct iio_chan_spec		ad9523_channels[AD9523_NUM_CHAN];
+	struct gpio_desc		*pwrdown_gpio;
+	struct gpio_desc		*reset_gpio;
+	struct gpio_desc		*sync_gpio;
 	struct clk_onecell_data		clk_data;
 	struct clk 			*clks[AD9523_NUM_CHAN];
-	struct gpio_desc			*pwrdown_gpio;
-	struct gpio_desc			*reset_gpio;
-	struct gpio_desc			*sync_gpio;
 
 	unsigned long		vcxo_freq;
 	unsigned long		vco_freq;
 	unsigned long		vco_out_freq[AD9523_NUM_CLK_SRC];
 	unsigned char		vco_out_map[AD9523_NUM_CHAN_ALT_CLK_SRC];
 
+	/*
+	 * Lock for accessing device registers. Some operations require
+	 * multiple consecutive R/W operations, during which the device
+	 * shouldn't be interrupted.  The buffers are also shared across
+	 * all operations so need to be protected on stand alone reads and
+	 * writes.
+	 */
 	struct mutex		lock;
 
 	/*
@@ -1004,7 +1011,7 @@ static int ad9523_setup(struct iio_dev *indio_dev)
 
 	ret = ad9523_write(indio_dev, AD9523_SERIAL_PORT_CONFIG,
 			   AD9523_SER_CONF_SOFT_RESET |
-			  ((st->spi->mode & SPI_3WIRE || pdata->spi3wire)? 0 :
+			  ((st->spi->mode & SPI_3WIRE) ? 0 :
 			  AD9523_SER_CONF_SDO_ACTIVE));
 	if (ret < 0)
 		return ret;
@@ -1215,11 +1222,14 @@ static int ad9523_setup(struct iio_dev *indio_dev)
 		}
 	}
 
-	for_each_clear_bit(i, &active_mask, AD9523_NUM_CHAN)
-		ad9523_write(indio_dev,
+	for_each_clear_bit(i, &active_mask, AD9523_NUM_CHAN) {
+		ret = ad9523_write(indio_dev,
 			     AD9523_CHANNEL_CLOCK_DIST(i),
 			     AD9523_CLK_DIST_DRIVER_MODE(TRISTATE) |
 			     AD9523_CLK_DIST_PWR_DOWN_EN);
+		if (ret < 0)
+			return ret;
+	}
 
 	ret = ad9523_write(indio_dev, AD9523_POWER_DOWN_CTRL, 0);
 	if (ret < 0)
@@ -1271,8 +1281,6 @@ static struct ad9523_platform_data *ad9523_parse_dt(struct device *dev)
 	pdata = devm_kzalloc(dev, sizeof(*pdata), GFP_KERNEL);
 	if (!pdata)
 		return ERR_PTR(-ENOMEM);
-
-	pdata->spi3wire = of_property_read_bool(np, "adi,spi-3wire-enable");
 
 	tmp = 0;
 	of_property_read_u32(np, "adi,vcxo-freq", &tmp);
@@ -1507,7 +1515,8 @@ static int ad9523_probe(struct spi_device *spi)
 		goto error_disable_reg;
 	}
 
-	st->reset_gpio = devm_gpiod_get_optional(&spi->dev, "reset", GPIOD_OUT_LOW);
+	st->reset_gpio = devm_gpiod_get_optional(&spi->dev, "reset",
+		GPIOD_OUT_LOW);
 	if (IS_ERR(st->reset_gpio)) {
 		ret = PTR_ERR(st->reset_gpio);
 		goto error_disable_reg;
@@ -1515,13 +1524,13 @@ static int ad9523_probe(struct spi_device *spi)
 
 	if (st->reset_gpio) {
 		udelay(1);
-
-		ret = gpiod_direction_output(st->reset_gpio, 1);
+		gpiod_direction_output(st->reset_gpio, 1);
 	}
 
 	mdelay(10);
 
-	st->sync_gpio = devm_gpiod_get_optional(&spi->dev, "sync", GPIOD_OUT_HIGH);
+	st->sync_gpio = devm_gpiod_get_optional(&spi->dev, "sync",
+		GPIOD_OUT_HIGH);
 	if (IS_ERR(st->sync_gpio)) {
 		ret = PTR_ERR(st->sync_gpio);
 		goto error_disable_reg;
