@@ -38,7 +38,7 @@
 		adi,extended-name = "ADC_CLK_FMC";
 		adi,driver-mode = <DRIVER_MODE_LVDS>;
 		adi,divider-phase = <0>;
-		adi,channel-divider = <2>;
+		adi,channel-divider = <4>;//2
 		adi,signal-source = <SOURCE_VCO>;
 	};
 
@@ -83,7 +83,7 @@
 		adi,extended-name = "DAC_CLK_FMC";
 		adi,driver-mode = <DRIVER_MODE_LVDS>;
 		adi,divider-phase = <0>;
-		adi,channel-divider = <2>;
+		adi,channel-divider = <4>;//2
 		adi,signal-source = <SOURCE_VCO>;
 	};
 };
